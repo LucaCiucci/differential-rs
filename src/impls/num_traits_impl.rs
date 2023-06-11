@@ -36,7 +36,7 @@ where
     type FromStrRadixErr = FormStrRadixErr;
 
     fn from_str_radix(_str: &str, _radix: u32) -> Result<Self, Self::FromStrRadixErr> {
-        unimplemented!("from_str_radix is not implemented for Differential, yet.");
+        todo!("from_str_radix is not implemented for Differential, yet.");
     }
 }
 
@@ -44,7 +44,7 @@ type FormStrRadixErr = ();
 
 impl<T> Signed for Differential<T>
 where
-    T: Neg<Output = T> + Num + Copy + PartialOrd,
+    T: Neg<Output = T> + Num + Copy + PartialOrd + Signed,
 {
     fn abs(&self) -> Self {
         if self.value < T::zero() {
@@ -63,21 +63,92 @@ where
     }
 
     fn signum(&self) -> Self {
-        if self.value < T::zero() {
-            Self::new(-T::one(), T::zero())
-        } else if self.value > T::zero() {
-            Self::new(T::one(), T::zero())
-        } else {
-            Self::new(T::zero(), T::zero())
-        }
+        Self::new(self.value.signum(), T::zero())
     }
 
     fn is_positive(&self) -> bool {
-        self.value > T::zero()
+        self.value.is_positive()
     }
 
     fn is_negative(&self) -> bool {
-        self.value < T::zero()
+        self.value.is_negative()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(test)]
+    #[test]
+    fn signed_abs() {
+        type D = Differential<f64>;
+        assert_eq!(D::new(1.0, 2.0).abs(), D::new(1.0, 2.0));
+        assert_eq!(D::new(1.0, -2.0).abs(), D::new(1.0, -2.0));
+        assert_eq!(D::new(-1.0, 2.0).abs(), D::new(1.0, -2.0));
+        assert_eq!(D::new(-1.0, -2.0).abs(), D::new(1.0, 2.0));
+        assert_eq!(D::new(0.0, 2.0).abs(), D::new(0.0, 2.0));
+        assert_eq!(D::new(0.0, -2.0).abs(), D::new(0.0, -2.0));
+        assert_eq!(D::new(0.0, 0.0).abs(), D::new(0.0, 0.0));
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn signed_abs_sub() {
+        type D = Differential<f64>;
+        assert_eq!(
+            D::new(1.0, 3.0).abs_sub(D::new(1.0, 2.0)),
+            D::new(0.0, 1.0)
+        );
+        assert_eq!(
+            D::new(1.0, 2.0).abs_sub(D::new(1.0, 3.0)),
+            D::new(0.0, -1.0)
+        );
+        assert_eq!(
+            D::new(1.0, 2.0).abs_sub(D::new(1.0, 2.0)),
+            D::new(0.0, 0.0)
+        );
+        assert_eq!(
+            D::new(1.0, 2.0).abs_sub(D::new(2.0, 2.0)),
+            D::new(0.0, 0.0)
+        );
+        assert_eq!(
+            D::new(2.0, 2.0).abs_sub(D::new(1.0, 2.0)),
+            D::new(1.0, 0.0)
+        );
+        // TODO check, possibly more cases
+    }
+
+    #[test]
+    fn signed_signum() {
+        assert_eq!((&Differential::new(1.0, 2.0)).signum(), Differential::new(1.0, 0.0));
+        assert_eq!((&Differential::new(-1.0, 2.0)).signum(), Differential::new(-1.0, 0.0));
+        assert_eq!((&Differential::new(0.0, 2.0)).signum(), Differential::new(1.0, 0.0)); // <----
+        assert_eq!((&Differential::new(1, 2)).signum(), Differential::new(1, 0));         //     |
+        assert_eq!((&Differential::new(-1, 2)).signum(), Differential::new(-1, 0));       //     |
+        assert_eq!((&Differential::new(0, 2)).signum(), Differential::new(0, 0));         // <----   note that for integers, signum is 0 for 0
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn signed_is_positive() {
+        assert_eq!((&Differential::new(1.0, 2.0)).is_positive(), true);
+        assert_eq!((&Differential::new(-1.0, 2.0)).is_positive(), false);
+        assert_eq!((&Differential::new(0.0, 2.0)).is_positive(), true); // <----
+        assert_eq!((&Differential::new(1, 2)).is_positive(), true);     //     |
+        assert_eq!((&Differential::new(-1, 2)).is_positive(), false);   //     |
+        assert_eq!((&Differential::new(0, 2)).is_positive(), false);    // <----   note that for integers, 0 is not positive
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn signed_is_negative() {
+        assert_eq!((&Differential::new(1.0, 2.0)).is_negative(), false);
+        assert_eq!((&Differential::new(-1.0, 2.0)).is_negative(), true);
+        assert_eq!((&Differential::new(0.0, 2.0)).is_negative(), false); // <----
+        assert_eq!((&Differential::new(1, 2)).is_negative(), false);     //     |
+        assert_eq!((&Differential::new(-1, 2)).is_negative(), true);     //     |
+        assert_eq!((&Differential::new(0, 2)).is_negative(), false);     // <----   note that for integers, 0 is not negative
     }
 }
 
