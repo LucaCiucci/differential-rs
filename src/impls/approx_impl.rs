@@ -3,7 +3,7 @@ use approx::{AbsDiffEq, UlpsEq, RelativeEq};
 use super::*;
 
 
-impl<T> AbsDiffEq for Differential<T>
+impl<T, D> AbsDiffEq for Differential<T, D>
 where
     T: AbsDiffEq,
 {
@@ -22,7 +22,7 @@ where
     }
 }
 
-impl<T> UlpsEq for Differential<T>
+impl<T, D> UlpsEq for Differential<T, D>
 where
     T: UlpsEq,
 {
@@ -39,7 +39,7 @@ where
     }
 }
 
-impl<T> RelativeEq for Differential<T>
+impl<T, D> RelativeEq for Differential<T, D>
 where
     T: RelativeEq,
 {

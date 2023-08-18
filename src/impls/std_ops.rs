@@ -5,7 +5,7 @@ use num_traits::Zero;
 
 use super::*;
 
-impl<T> PartialEq for Differential<T>
+impl<T, D> PartialEq for Differential<T, D>
 where
     T: PartialEq,
 {
@@ -14,7 +14,7 @@ where
     }
 }
 
-impl<T> PartialOrd for Differential<T>
+impl<T, D> PartialOrd for Differential<T, D>
 where
     T: PartialOrd,
 {
@@ -23,9 +23,10 @@ where
     }
 }
 
-impl<T> std::ops::Add for Differential<T>
+impl<T, D> std::ops::Add for Differential<T, D>
 where
     T: std::ops::Add<Output = T>,
+    D: std::ops::Add<Output = D>,
 {
     type Output = Self;
 
@@ -37,30 +38,34 @@ where
     }
 }
 
-impl<T> std::ops::Add<Differential<T>> for f64
+impl<T, D> std::ops::Add<Differential<T, D>> for f64
 where
-    Differential<T>: std::ops::Add<Output = Differential<T>>,
+    Differential<T, D>: std::ops::Add<Output = Differential<T, D>>,
     T: From<f64>,
+    D: Zero,
 {
-    type Output = Differential<T>;
+    type Output = Differential<T, D>;
 
-    fn add(self, other: Differential<T>) -> Differential<T> {
-        Differential::new(self.into(), 0.0.into()) + other
+    fn add(self, other: Differential<T, D>) -> Differential<T, D> {
+        Differential::<T, D>::new(self.into(), D::zero()) + other
     }
 }
 
-impl<T> std::ops::AddAssign for Differential<T>
+impl<T, D> std::ops::AddAssign for Differential<T, D>
 where
-    T: std::ops::Add<Output = T> + Copy,
+    T: std::ops::AddAssign,
+    D: std::ops::AddAssign,
 {
     fn add_assign(&mut self, other: Self) {
-        *self = *self + other;
+        self.value += other.value;
+        self.derivative += other.derivative;
     }
 }
 
-impl<T> std::ops::Neg for Differential<T>
+impl<T, D> std::ops::Neg for Differential<T, D>
 where
     T: std::ops::Neg<Output = T>,
+    D: std::ops::Neg<Output = D>,
 {
     type Output = Self;
 
@@ -72,9 +77,10 @@ where
     }
 }
 
-impl<T> std::ops::Sub for Differential<T>
+impl<T, D> std::ops::Sub for Differential<T, D>
 where
     T: std::ops::Sub<Output = T>,
+    D: std::ops::Sub<Output = D>,
 {
     type Output = Self;
 
@@ -86,101 +92,101 @@ where
     }
 }
 
-impl<T> std::ops::Sub<Differential<T>> for f64
+impl<T, D> std::ops::Sub<Differential<T, D>> for f64
 where
-    Differential<T>: std::ops::Sub<Output = Differential<T>>,
+    Differential<T, D>: std::ops::Sub<Output = Differential<T, D>>,
     T: From<f64>,
+    D: Zero,
 {
-    type Output = Differential<T>;
+    type Output = Differential<T, D>;
 
-    fn sub(self, other: Differential<T>) -> Differential<T> {
-        Differential::new(self.into(), 0.0.into()) - other
+    fn sub(self, other: Differential<T, D>) -> Differential<T, D> {
+        Differential::<T, D>::new(self.into(), D::zero()) - other
     }
 }
 
-impl<T> std::ops::SubAssign for Differential<T>
+impl<T, D> std::ops::SubAssign for Differential<T, D>
 where
-    T: std::ops::Sub<Output = T> + Copy,
+    T: std::ops::SubAssign,
+    D: std::ops::SubAssign,
 {
     fn sub_assign(&mut self, other: Self) {
-        *self = *self - other;
+        self.value -= other.value;
+        self.derivative -= other.derivative;
     }
 }
 
-impl<T> std::ops::Mul for Differential<T>
+impl<T, D> std::ops::Mul for Differential<T, D>
 where
-    T: std::ops::Mul<Output = T> + std::ops::Add<Output = T> + Copy,
+    T: std::ops::Mul<Output = T> + Clone,
+    D: std::ops::Mul<T, Output = D> + std::ops::Add<Output = D> + Clone,
 {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
         Self::new(
-            self.value * other.value,
-            self.value * other.derivative + self.derivative * other.value,
+            self.value.clone() * other.value.clone(),
+            other.derivative * self.value + self.derivative * other.value,
         )
     }
 }
 
-impl<T> std::ops::MulAssign for Differential<T>
+impl<T, D> std::ops::MulAssign for Differential<T, D>
 where
-    T: std::ops::Mul<Output = T> + std::ops::Add<Output = T> + Copy,
+    Self: std::ops::Mul<Output = Self> + Clone, // TODO without Clone
 {
     fn mul_assign(&mut self, other: Self) {
-        *self = *self * other;
+        *self = self.clone() * other;
     }
 }
 
-impl<T> std::ops::Div for Differential<T>
+impl<T, D> std::ops::Div for Differential<T, D>
 where
-    T: Div<Output = T> + Zero + PartialEq + Mul<Output = T> + Sub<Output = T> + Copy,
+    T: Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Clone, // TODO without Clone
+    D: Zero + Mul<T, Output = D> + Sub<Output = D> + Div<T, Output = D>,
 {
     type Output = Self;
 
     fn div(self, other: Self) -> Self {
-        if self.value == T::zero() && other.value == T::zero() {
-            return Self::new(
-                self.derivative / other.derivative,
-                T::zero() // TODO correct??
-            )
-        }
         Self::new(
-            self.value / other.value,
-            (self.derivative * other.value - self.value * other.derivative) / (other.value * other.value)
+            self.value.clone() / other.value.clone(),
+            (self.derivative * other.value.clone() - other.derivative * self.value.clone()) / (other.value.clone() * other.value)
         )
     }
 }
 
-impl<T> std::ops::DivAssign for Differential<T>
+impl<T, D> std::ops::DivAssign for Differential<T, D>
 where
-    T: Div<Output = T> + Zero + PartialEq + Mul<Output = T> + Sub<Output = T> + Copy,
+    Self: std::ops::Div<Output = Self> + Clone, // TODO without Clone
 {
     fn div_assign(&mut self, other: Self) {
-        *self = *self / other;
+        *self = self.clone() / other;
     }
 }
 
-impl<T> std::ops::Rem for Differential<T>
+impl<T, D> std::ops::Rem for Differential<T, D>
 where
-    T: std::ops::Rem<Output = T> + Div<Output = T> + Copy + Sub<Output = T> + Mul<Output = T>,
+    T: std::ops::Rem<Output = T> + Div<Output = T> + Sub<Output = T> + Clone,
+    D: std::ops::Mul<T, Output = D> + std::ops::Sub<Output = D>,
 {
     type Output = Self;
 
     fn rem(self, _other: Self) -> Self {
         // TODO to check, also is it correct for negative values?
-        let rem = self.value % _other.value;
-        let i_div = (self.value - rem) / _other.value;
+        let rem = self.value.clone() % _other.value.clone();
+        let i_div = (self.value - rem.clone()) / _other.value;
         Self::new(
             rem,
-            self.derivative - i_div * _other.derivative,
+            self.derivative - _other.derivative * i_div,
         )
     }
 }
 
-impl<T> std::ops::RemAssign for Differential<T>
+impl<T, D> std::ops::RemAssign for Differential<T, D>
 where
-    T: std::ops::Rem<Output = T> + Div<Output = T> + Copy + Sub<Output = T> + Mul<Output = T>,
+    Self: std::ops::Rem<Output = Self> + Clone, // TODO without Clone
 {
     fn rem_assign(&mut self, _other: Self) {
-        *self = *self % _other;
+        *self = self.clone() % _other;
     }
 }

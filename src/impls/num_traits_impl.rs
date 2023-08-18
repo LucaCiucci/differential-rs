@@ -1,27 +1,31 @@
 
 use std::ops::Neg;
 
-use num_traits::{real::Real, NumCast, ToPrimitive, Zero, One, Num, Signed};
+use num_traits::{real::Real, NumCast, ToPrimitive, Zero, One, Num, Signed, NumOps};
 
 use super::*;
 
 
 
-impl<T> One for Differential<T>
+impl<T, D> One for Differential<T, D>
 where
-    T: Copy + Zero + One,
+    T: One,
+    D: Zero,
+    Self: std::ops::Mul<Output = Self>,
 {
-    fn one() -> Differential<T> {
-        Differential::new(T::one(), T::zero())
+    fn one() -> Differential<T, D> {
+        Differential::new(T::one(), D::zero())
     }
 }
 
-impl<T> Zero for Differential<T>
+impl<T, D> Zero for Differential<T, D>
 where
-    T: Copy + Zero,
+    T: Zero,
+    D: Zero,
+    Self: std::ops::Add<Output = Self>,
 {
-    fn zero() -> Differential<T> {
-        Differential::new(T::zero(), T::zero())
+    fn zero() -> Differential<T, D> {
+        Differential::new(T::zero(), D::zero())
     }
 
     fn is_zero(&self) -> bool {
@@ -29,9 +33,11 @@ where
     }
 }
 
-impl<T> Num for Differential<T>
+impl<T, D> Num for Differential<T, D>
 where
-    T: Num + Copy,
+    T: Num,
+    D: Zero,
+    Self: NumOps,
 {
     type FromStrRadixErr = FormStrRadixErr;
 
@@ -42,15 +48,17 @@ where
 
 type FormStrRadixErr = ();
 
-impl<T> Signed for Differential<T>
+impl<T, D> Signed for Differential<T, D>
 where
-    T: Neg<Output = T> + Num + Copy + PartialOrd + Signed,
+    T: Neg<Output = T> + Num + PartialOrd + Signed,
+    D: Neg<Output = D> + Zero,
+    Self: NumOps + Clone,
 {
     fn abs(&self) -> Self {
         if self.value < T::zero() {
-            -*self
+            -self.clone()
         } else {
-            *self
+            self.clone()
         }
     }
 
@@ -58,12 +66,12 @@ where
         if self.value < other.value {
             Self::zero()
         } else {
-            *self - *other
+            self.clone() - other.clone()
         }
     }
 
     fn signum(&self) -> Self {
-        Self::new(self.value.signum(), T::zero())
+        Self::new(self.value.signum(), D::zero())
     }
 
     fn is_positive(&self) -> bool {
@@ -152,7 +160,7 @@ mod tests {
     }
 }
 
-impl<T> ToPrimitive for Differential<T>
+impl<T, D> ToPrimitive for Differential<T, D>
 where
     T: ToPrimitive,
 {
@@ -165,62 +173,65 @@ where
     }
 }
 
-impl<T> NumCast for Differential<T>
+impl<T, D> NumCast for Differential<T, D>
 where
-    T: ToPrimitive + NumCast + Zero,
+    T: ToPrimitive + NumCast,
+    D: Zero,
 {
     fn from<T2: ToPrimitive>(n: T2) -> Option<Self> {
         let f = n.to_f64()?;
-        Some(Self::new(T::from(f).unwrap(), T::zero())) // TODO correct??? we are losing derivative and precision here!
+        Some(Self::new(T::from(f).unwrap(), D::zero())) // TODO correct??? we are losing derivative and precision here!
     }
 }
 
-impl<T> Real for Differential<T>
+impl<T, D> Real for Differential<T, D>
 where
     T: Real + NumCast,
+    D: Neg<Output = D> + Zero + Copy + std::ops::Mul<T, Output = D> + std::ops::Div<T, Output = D> + std::ops::Sub<Output = D>, // TODO remove copy
+    Self: NumOps,
 {
     fn min_value() -> Self {
-        Self::new(T::min_value(), T::zero())
+        Self::new(T::min_value(), D::zero())
     }
 
     fn min_positive_value() -> Self {
-        Self::new(T::min_positive_value(), T::zero())
+        Self::new(T::min_positive_value(), D::zero())
     }
 
     fn epsilon() -> Self {
-        Self::new(T::epsilon(), T::zero())
+        Self::new(T::epsilon(), D::zero())
     }
 
     fn max_value() -> Self {
-        Self::new(T::max_value(), T::zero())
+        Self::new(T::max_value(), D::zero())
     }
 
     fn floor(self) -> Self {
-        Self::new(self.value.floor(), T::zero())
+        Self::new(self.value.floor(), D::zero())
     }
 
     fn ceil(self) -> Self {
-        Self::new(self.value.ceil(), T::zero())
+        Self::new(self.value.ceil(), D::zero())
     }
 
     fn round(self) -> Self {
-        Self::new(self.value.round(), T::zero())
+        Self::new(self.value.round(), D::zero())
     }
 
     fn trunc(self) -> Self {
-        Self::new(self.value.trunc(), T::zero())
+        Self::new(self.value.trunc(), D::zero())
     }
 
     fn fract(self) -> Self {
-        Self::new(self.value.fract(), T::zero())
+        Self::new(self.value.fract(), D::zero())
     }
 
     fn abs(self) -> Self {
-        Self::new(self.value.abs(), T::zero())
+        Self::new(self.value.abs(), D::zero())
     }
 
     fn signum(self) -> Self {
-        Self::new(self.value.signum(), T::zero())
+        Self::new(self.value.signum(), D::zero())
     }
 
     fn is_sign_positive(self) -> bool {
@@ -360,7 +371,7 @@ where
     fn atan2(self, other: Self) -> Self {
         Self::new(
             self.value.atan2(other.value),
-            (self.derivative * other.value - self.value * other.derivative) / (self.value.powi(2) + other.value.powi(2)), // TODO copilot, to check
+            (self.derivative * other.value - other.derivative * self.value) / (self.value.powi(2) + other.value.powi(2)), // TODO copilot, to check
         )
     }
 

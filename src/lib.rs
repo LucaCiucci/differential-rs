@@ -10,18 +10,18 @@ mod impls;
 
 /// A (first order) differential
 #[derive(Debug, Clone, Copy, Default)]
-pub struct Differential<T = f64>
+pub struct Differential<T = f64, D = T>
 {
     /// The value of the function
     pub value: T,
 
     /// The derivative of the function
-    pub derivative: T,
+    pub derivative: D,
 }
 
-impl<T> Differential<T> {
+impl<T, D> Differential<T, D> {
     /// Creates a new differential with the given value and derivative
-    pub fn new(value: T, derivative: T) -> Self {
+    pub fn new(value: T, derivative: D) -> Self {
         Self {
             value,
             derivative,
@@ -38,18 +38,18 @@ where
     }
 }*/
 
-impl<T> From<T> for Differential<T>
+impl<T, D> From<T> for Differential<T, D>
 where
-    T: Zero,
+    D: Zero,
 {
     fn from(x: T) -> Self {
-        Differential::new(x, T::zero())
+        Differential::new(x, D::zero())
     }
 }
 
-impl<T> From<(T, T)> for Differential<T>
+impl<T, D> From<(T, D)> for Differential<T, D>
 {
-    fn from(value: (T, T)) -> Self {
+    fn from(value: (T, D)) -> Self {
         Differential::new(value.0, value.1)
     }
 }
