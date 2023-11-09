@@ -131,6 +131,20 @@ where
     }
 }
 
+impl<T, D> std::ops::Mul<T> for Differential<T, D>
+where
+    T: std::ops::Mul<Output = T> + Clone,
+    D: std::ops::Mul<T, Output = D>,
+{
+    type Output = Self;
+    fn mul(self, rhs: T) -> Self::Output {
+        Self::new(
+            self.value * rhs.clone(),
+            self.derivative * rhs,
+        )
+    }
+}
+
 impl<T, D> std::ops::MulAssign for Differential<T, D>
 where
     Self: std::ops::Mul<Output = Self> + Clone, // TODO without Clone
