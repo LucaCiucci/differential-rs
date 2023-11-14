@@ -29,7 +29,7 @@ where
     }
 
     fn is_zero(&self) -> bool {
-        self.value.is_zero() && self.derivative.is_zero()
+        self.value.is_zero() && self.jacobian.is_zero()
     }
 }
 
@@ -251,7 +251,7 @@ where
     }
 
     fn powi(self, n: i32) -> Self {
-        Self::new(self.value.powi(n), self.derivative * self.value.powi(n - 1) * T::from::<i32>(n).unwrap()) // TODO remove unwrap somehow
+        Self::new(self.value.powi(n), self.jacobian * self.value.powi(n - 1) * T::from::<i32>(n).unwrap()) // TODO remove unwrap somehow
     }
 
     fn powf(self, _n: Self) -> Self {
@@ -259,11 +259,11 @@ where
     }
 
     fn sqrt(self) -> Self {
-        Self::new(self.value.sqrt(), self.derivative / (T::from(2).unwrap() * self.value.sqrt())) // TODO copilot, to check
+        Self::new(self.value.sqrt(), self.jacobian / (T::from(2).unwrap() * self.value.sqrt())) // TODO copilot, to check
     }
 
     fn exp(self) -> Self {
-        Self::new(self.value.exp(), self.derivative * self.value.exp()) // TODO copilot, to check
+        Self::new(self.value.exp(), self.jacobian * self.value.exp()) // TODO copilot, to check
     }
 
     fn exp2(self) -> Self {
@@ -271,7 +271,7 @@ where
     }
 
     fn ln(self) -> Self {
-        Self::new(self.value.ln(), self.derivative / self.value) // TODO copilot, to check
+        Self::new(self.value.ln(), self.jacobian / self.value) // TODO copilot, to check
     }
 
     fn log(self, _base: Self) -> Self {
@@ -329,57 +329,57 @@ where
     fn sin(self) -> Self {
         Self::new(
             self.value.sin(),
-            self.derivative * self.value.cos(),
+            self.jacobian * self.value.cos(),
         )
     }
 
     fn cos(self) -> Self {
         Self::new(
             self.value.cos(),
-            -self.derivative * self.value.sin(),
+            -self.jacobian * self.value.sin(),
         )
     }
 
     fn tan(self) -> Self {
         Self::new(
             self.value.tan(),
-            self.derivative / self.value.cos().powi(2), // TODO copilot, to check
+            self.jacobian / self.value.cos().powi(2), // TODO copilot, to check
         )
     }
 
     fn asin(self) -> Self {
         Self::new(
             self.value.asin(),
-            self.derivative / (T::one() - self.value.powi(2)).sqrt(), // TODO copilot, to check
+            self.jacobian / (T::one() - self.value.powi(2)).sqrt(), // TODO copilot, to check
         )
     }
 
     fn acos(self) -> Self {
         Self::new(
             self.value.acos(),
-            -self.derivative / (T::one() - self.value.powi(2)).sqrt(), // TODO copilot, to check
+            -self.jacobian / (T::one() - self.value.powi(2)).sqrt(), // TODO copilot, to check
         )
     }
 
     fn atan(self) -> Self {
         Self::new(
             self.value.atan(),
-            self.derivative / (T::one() + self.value.powi(2)), // TODO copilot, to check
+            self.jacobian / (T::one() + self.value.powi(2)), // TODO copilot, to check
         )
     }
 
     fn atan2(self, other: Self) -> Self {
         Self::new(
             self.value.atan2(other.value),
-            (self.derivative * other.value - other.derivative * self.value) / (self.value.powi(2) + other.value.powi(2)), // TODO copilot, to check
+            (self.jacobian * other.value - other.jacobian * self.value) / (self.value.powi(2) + other.value.powi(2)), // TODO copilot, to check
         )
     }
 
     fn sin_cos(self) -> (Self, Self) {
         let (sin, cos) = self.value.sin_cos();
         (
-            Self::new(sin, self.derivative * cos),
-            Self::new(cos, -self.derivative * sin),
+            Self::new(sin, self.jacobian * cos),
+            Self::new(cos, -self.jacobian * sin),
         )
     }
 
@@ -394,42 +394,42 @@ where
     fn sinh(self) -> Self {
         Self::new(
             self.value.sinh(),
-            self.derivative * self.value.cosh(), // TODO copilot, to check
+            self.jacobian * self.value.cosh(), // TODO copilot, to check
         )
     }
 
     fn cosh(self) -> Self {
         Self::new(
             self.value.cosh(),
-            self.derivative * self.value.sinh(), // TODO copilot, to check
+            self.jacobian * self.value.sinh(), // TODO copilot, to check
         )
     }
 
     fn tanh(self) -> Self {
         Self::new(
             self.value.tanh(),
-            self.derivative / self.value.cosh().powi(2), // TODO copilot, to check
+            self.jacobian / self.value.cosh().powi(2), // TODO copilot, to check
         )
     }
 
     fn asinh(self) -> Self {
         Self::new(
             self.value.asinh(),
-            self.derivative / (self.value.powi(2) + T::one()).sqrt(), // TODO copilot, to check
+            self.jacobian / (self.value.powi(2) + T::one()).sqrt(), // TODO copilot, to check
         )
     }
 
     fn acosh(self) -> Self {
         Self::new(
             self.value.acosh(),
-            self.derivative / (self.value.powi(2) - T::one()).sqrt(), // TODO copilot, to check
+            self.jacobian / (self.value.powi(2) - T::one()).sqrt(), // TODO copilot, to check
         )
     }
 
     fn atanh(self) -> Self {
         Self::new(
             self.value.atanh(),
-            self.derivative / (T::one() - self.value.powi(2)), // TODO copilot, to check
+            self.jacobian / (T::one() - self.value.powi(2)), // TODO copilot, to check
         )
     }
 }

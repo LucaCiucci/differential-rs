@@ -10,5 +10,15 @@ num-traits = "0.2.15"
 nalgebra = "0.32.2"
 approx = "0.5.1"
 
+[features]
+default = [
+    #"generic_const_exprs"
+]
+generic_const_exprs = []
+
 
 # TODO use [features]
+
+[profile.release]
+#debug = true
+#lto = true
