@@ -69,7 +69,7 @@ where
                 let derivatives = self.derivatives() * &self.drop_one_order() - other.derivatives() * &other.drop_one_order();
                 let data = std::iter::once(value)
                     .chain(derivatives.unwrap_data().into_iter())
-                    .collect::<Vec<_>>();
+                    .collect::<Vec<_>>(); // TODO <- optimize
                 Self::Output::from_data(self.order, self.n, Data::from_slice(&data[..])) // TODO <- optimize
             }
         }

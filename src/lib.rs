@@ -7,7 +7,7 @@ Provides some differentiation utilities.
 
 use std::borrow::Cow;
 use std::fmt::Debug;
-use std::ops::{Index, IndexMut, MulAssign};
+use std::ops::{Index, IndexMut, MulAssign, DivAssign, AddAssign, SubAssign};
 
 use num_traits::real::Real;
 use num_traits::NumCast;
@@ -21,7 +21,7 @@ mod derivatives; pub use derivatives::*;
 mod utils; use utils::*;
 
 #[derive(Debug, Clone, Copy)]
-pub struct Diff<Order: Dim, N: Dim, Data> // TODO remove T as it can be deduced from Data
+pub struct Diff<Order: Dim, N: Dim, Data>
 where
     Data: ContiguousContainer,
 {
@@ -162,6 +162,78 @@ where
             r
         });
         Diff::from_data(order, n, data)
+    }
+
+    pub fn add_value(&mut self, rhs: Data::Item)
+    where
+        Data: ContiguousContainerMut,
+        Data::Item: AddAssign,
+    {
+        self.data.slice_mut()[0] += rhs;
+    }
+
+    pub fn with_added_value(mut self, rhs: Data::Item) -> Self
+    where
+        Data: ContiguousContainerMut,
+        Data::Item: AddAssign,
+    {
+        self.add_value(rhs);
+        self
+    }
+
+    pub fn sub_value(&mut self, rhs: Data::Item)
+    where
+        Data: ContiguousContainerMut,
+        Data::Item: SubAssign,
+    {
+        self.data.slice_mut()[0] -= rhs;
+    }
+
+    pub fn with_subbed_value(mut self, rhs: Data::Item) -> Self
+    where
+        Data: ContiguousContainerMut,
+        Data::Item: SubAssign,
+    {
+        self.sub_value(rhs);
+        self
+    }
+
+    pub fn scale_by(&mut self, rhs: Data::Item)
+    where
+        Data: ContiguousContainerMut,
+        Data::Item: MulAssign,
+    {
+        for a in self.data.slice_mut().iter_mut() {
+            *a *= rhs.clone();
+        }
+    }
+
+    pub fn scaled_by(mut self, rhs: Data::Item) -> Self
+    where
+        Data: ContiguousContainerMut,
+        Data::Item: MulAssign,
+    {
+        self.scale_by(rhs);
+        self
+    }
+
+    pub fn scale_by_inv(&mut self, rhs: Data::Item)
+    where
+        Data: ContiguousContainerMut,
+        Data::Item: DivAssign,
+    {
+        for a in self.data.slice_mut().iter_mut() {
+            *a /= rhs.clone();
+        }
+    }
+
+    pub fn scaled_by_inv(mut self, rhs: Data::Item) -> Self
+    where
+        Data: ContiguousContainerMut,
+        Data::Item: DivAssign,
+    {
+        self.scale_by_inv(rhs);
+        self
     }
 }
 

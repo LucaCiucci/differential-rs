@@ -49,6 +49,55 @@ where
             data,
         )
     }
+
+    pub fn scale_by(&mut self, rhs: Data::Item)
+    where
+        Data: ContiguousContainerMut,
+        Data::Item: MulAssign,
+    {
+        for a in self.data.slice_mut().iter_mut() {
+            *a *= rhs.clone();
+        }
+    }
+
+    pub fn scaled_by(mut self, rhs: Data::Item) -> Self
+    where
+        Data: ContiguousContainerMut,
+        Data::Item: MulAssign,
+    {
+        self.scale_by(rhs);
+        self
+    }
+
+    pub fn scale_by_inv(&mut self, rhs: Data::Item)
+    where
+        Data: ContiguousContainerMut,
+        Data::Item: DivAssign,
+    {
+        for a in self.data.slice_mut().iter_mut() {
+            *a /= rhs.clone();
+        }
+    }
+
+    pub fn scaled_by_inv(mut self, rhs: Data::Item) -> Self
+    where
+        Data: ContiguousContainerMut,
+        Data::Item: DivAssign,
+    {
+        self.scale_by_inv(rhs);
+        self
+    }
+}
+
+impl<ORDER: Dim, N: Dim, Data> IntoOwned for Derivatives<ORDER, N, Data>
+where
+    Data: ContiguousContainer,
+    Data::Owned: ContiguousContainer,
+{
+    type Owned = Derivatives<ORDER, N, Data::Owned>;
+    fn into_owned(self) -> Self::Owned {
+        Derivatives::new(self.order, self.n, self.data.into_owned())
+    }
 }
 
 #[cfg(feature = "generic_const_exprs")]

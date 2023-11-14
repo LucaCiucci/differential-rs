@@ -1,5 +1,16 @@
 use super::*;
 
+//impl<Order: Dim, N: Dim, Data> std::ops::Mul<Data::Item> for Diff<Order, N, Data>
+//where
+//    Data: ContiguousContainer,
+//    Data::Owned: ContiguousContainerMut<Item = Data::Item>,
+//{
+//    type Output = Diff<Order, N, Data::Owned>;
+//
+//    fn mul(self, rhs: Data::Item) -> Self::Output {
+//    }
+//}
+
 impl<Order: Dim, N: Dim, Data, Data2> std::ops::Mul<Diff<Order, N, Data2>> for Diff<Order, N, Data>
 where
     Data: ContiguousContainer,
