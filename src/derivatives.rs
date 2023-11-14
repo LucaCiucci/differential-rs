@@ -114,3 +114,25 @@ where
         )
     }
 }
+
+impl<ORDER: Dim, N: Dim, Data, Data2> std::ops::Sub<Derivatives<ORDER, N, Data2>> for Derivatives<ORDER, N, Data>
+where
+    Data: ContiguousContainer,
+    Data::Owned: ContiguousContainer,
+    Data2: ContiguousContainer<Item = Data::Item>,
+    Data::Item: std::ops::Sub<Data2::Item, Output = Data::Item> + Clone,
+{
+    type Output = Derivatives<ORDER, N, Vec<Data::Item>>;
+
+    fn sub(self, rhs: Derivatives<ORDER, N, Data2>) -> Self::Output {
+        let data = self.data.slice().iter()
+            .zip(rhs.data.slice().iter())
+            .map(|(a, b)| a.clone() - b.clone())
+            .collect::<Vec<_>>();
+        Derivatives::new(
+            self.order,
+            self.n,
+            data
+        )
+    }
+}
