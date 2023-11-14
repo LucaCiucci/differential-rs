@@ -5,7 +5,7 @@ where
     Data: ContiguousContainer,
     Data2: ContiguousContainer<Item = Data::Item> + Clone,
     Data::Owned: ContiguousContainerMut<Item = Data::Item>,
-    Data2::Owned: ContiguousContainerMut<Item = Data::Item>,
+    Data2::Owned: ContiguousContainer<Item = Data::Item>,
     Data::Item: Zero + for <'a> std::ops::Mul<&'a Data::Item, Output = Data::Item> + std::ops::AddAssign + Real + std::ops::MulAssign,
 {
     type Output = Diff<Order, N, Data::Owned>;
@@ -54,6 +54,7 @@ where
                     )
                 }
                 _ => {
+                    // TODO the following algorithm works even is the orders are different, remove the bound on the order
                     let order = self.order;
                     let n = self.n;
                     let lhs = self.polynomial_coeffs();
@@ -90,7 +91,7 @@ where
     Data: ContiguousContainer,
     Data2: ContiguousContainer<Item = Data::Item> + Clone,
     Data::Owned: ContiguousContainerMut<Item = Data::Item>,
-    Data2::Owned: ContiguousContainerMut<Item = Data::Item>,
+    Data2::Owned: ContiguousContainer<Item = Data::Item>,
     Diff<Order, N, Data2>: Clone,
     Data::Item: Zero + for <'a> std::ops::Mul<&'a Data::Item, Output = Data::Item> + std::ops::AddAssign + Real + std::ops::MulAssign,
 {

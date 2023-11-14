@@ -5,13 +5,12 @@ where
     Data: ContiguousContainer,
     Data2: ContiguousContainer<Item = Data::Item> + Clone,
     Data::Owned: ContiguousContainerMut<Item = Data::Item> + Clone,
-    Data2::Owned: ContiguousContainerMut<Item = Data::Item>,
+    Data2::Owned: ContiguousContainer<Item = Data::Item>,
     Data::Item: Zero + for <'a> std::ops::Div<&'a Data::Item, Output = Data::Item> + for <'a> std::ops::Mul<&'a Data::Item, Output = Data::Item> + std::ops::AddAssign + std::ops::SubAssign + Real + std::ops::MulAssign + std::ops::DivAssign,
 {
     type Output = Diff<Order, N, Data::Owned>;
 
     fn div(self, other: Diff<Order, N, Data2>) -> Self::Output {
-        //todo!();
         assert_eq!(self.n(), other.n());
         if self.order() == other.order() && self.n() == 1 {
             let order = self.order;
@@ -19,6 +18,7 @@ where
             let mut data = self.polynomial_coeffs().clone();
             let rhs = other.clone().polynomial_coeffs();
             let rhs = rhs.slice();
+            // TODO the following algorithm works even is the orders are different, remove the bound on the order
             // this function perform a polynomial division, taking into account the proper order:
             /*
             let:
@@ -81,7 +81,7 @@ where
     Data: ContiguousContainer,
     Data2: ContiguousContainer<Item = Data::Item> + Clone,
     Data::Owned: ContiguousContainerMut<Item = Data::Item> + Clone,
-    Data2::Owned: ContiguousContainerMut<Item = Data::Item>,
+    Data2::Owned: ContiguousContainer<Item = Data::Item>,
     Data::Item: Zero + for <'a> std::ops::Div<&'a Data::Item, Output = Data::Item> + for <'a> std::ops::Mul<&'a Data::Item, Output = Data::Item> + std::ops::AddAssign + std::ops::SubAssign + Real + std::ops::MulAssign + std::ops::DivAssign,
 {
     type Output = Diff<Order, N, Data::Owned>;
