@@ -12,29 +12,31 @@ use std::ops::{Index, IndexMut, MulAssign, DivAssign, AddAssign, SubAssign};
 use num_traits::real::Real;
 use num_traits::NumCast;
 
-mod impls;
+pub mod impls;
 
-
-mod containers; pub use containers::*;
+mod alias;
+mod storage; pub use storage::*;
 mod dim; pub use dim::*;
 mod derivatives; pub use derivatives::*;
 mod utils; use utils::*;
 
+pub use alias::*;
+
 #[derive(Debug, Clone, Copy)]
-pub struct Diff<Order: Dim, N: Dim, Data>
+pub struct Differential<Order: Dim, N: Dim, Data>
 where
-    Data: ContiguousContainer,
+    Data: ConstStorage,
 {
     order: Order,
     n: N,
     data: Data,
 }
 
-impl<ORDER: Dim, N: Dim, Data> Diff<ORDER, N, Data>
+impl<Order: Dim, N: Dim, Data> Differential<Order, N, Data>
 where
-    Data: ContiguousContainer,
+    Data: ConstStorage,
 {
-    pub fn from_data(order: ORDER, n: N, data: Data) -> Self {
+    pub fn from_data(order: Order, n: N, data: Data) -> Self {
         assert!(data.slice().len() >= number_of_elements(n.value(), order.value()));
         Self {
             order,
@@ -61,7 +63,7 @@ where
 
     pub fn value_mut(&mut self) -> &mut Data::Item
     where
-        Data: ContiguousContainerMut,
+        Data: MutStorage,
     {
         &mut self.data.slice_mut()[0]
     }
@@ -75,17 +77,17 @@ where
         )
     }
 
-    pub fn drop_one_order(&self) -> Diff<Dynamic, Dynamic, Cow<[Data::Item]>> {
+    pub fn drop_one_order(&self) -> Differential<Dynamic, Dynamic, Cow<[Data::Item]>> {
         assert!(self.order() > 0);
         if self.n() == 1 {
-            Diff::from_data(
+            Differential::from_data(
                 Dynamic(self.order() - 1),
                 Dynamic(1),
                 self.data.slice()[0..self.order()].into()
             )
         } else {
             if self.order() == 1 {
-                Diff::from_data(
+                Differential::from_data(
                     Dynamic(0),
                     Dynamic(self.n()),
                     self.data.slice()[0..1].into()
@@ -108,7 +110,7 @@ where
                     )
                     .collect::<Vec<_>>();
 
-                Diff::from_data(
+                Differential::from_data(
                     Dynamic(self.order() - 1),
                     Dynamic(self.n()),
                     data.into()
@@ -120,16 +122,16 @@ where
     pub fn drop_first_derivatives(
         &self,
         offset: usize,
-    ) -> Diff<Dynamic, Dynamic, &[Data::Item]> {
-        Diff::from_data(
+    ) -> Differential<Dynamic, Dynamic, &[Data::Item]> {
+        Differential::from_data(
             Dynamic(self.order()),
             Dynamic(self.n() - offset),
             &self.data.slice(), // TODO <- correct range
         )
     }
 
-    pub fn as_dynamic(&self) -> Diff<Dynamic, Dynamic, &[Data::Item]> {
-        Diff::from_data(
+    pub fn as_dynamic(&self) -> Differential<Dynamic, Dynamic, &[Data::Item]> {
+        Differential::from_data(
             Dynamic(self.order()),
             Dynamic(self.n()),
             self.data.slice()
@@ -149,9 +151,9 @@ where
         })
     }
 
-    pub fn from_polynomial_coeffs(data: Data, order: ORDER, n: N) -> Diff<ORDER, N, Data::Owned>
+    pub fn from_polynomial_coeffs(data: Data, order: Order, n: N) -> Differential<Order, N, Data::Owned>
     where
-        Data::Owned: ContiguousContainer,
+        Data::Owned: ConstStorage,
         Data::Item: Real + MulAssign,
     {
         assert!(n.value() == 1);
@@ -161,12 +163,12 @@ where
             let r = c * multiplier;
             r
         });
-        Diff::from_data(order, n, data)
+        Differential::from_data(order, n, data)
     }
 
     pub fn add_value(&mut self, rhs: Data::Item)
     where
-        Data: ContiguousContainerMut,
+        Data: MutStorage,
         Data::Item: AddAssign,
     {
         self.data.slice_mut()[0] += rhs;
@@ -174,7 +176,7 @@ where
 
     pub fn with_added_value(mut self, rhs: Data::Item) -> Self
     where
-        Data: ContiguousContainerMut,
+        Data: MutStorage,
         Data::Item: AddAssign,
     {
         self.add_value(rhs);
@@ -183,7 +185,7 @@ where
 
     pub fn sub_value(&mut self, rhs: Data::Item)
     where
-        Data: ContiguousContainerMut,
+        Data: MutStorage,
         Data::Item: SubAssign,
     {
         self.data.slice_mut()[0] -= rhs;
@@ -191,7 +193,7 @@ where
 
     pub fn with_subbed_value(mut self, rhs: Data::Item) -> Self
     where
-        Data: ContiguousContainerMut,
+        Data: MutStorage,
         Data::Item: SubAssign,
     {
         self.sub_value(rhs);
@@ -200,7 +202,7 @@ where
 
     pub fn scale_by(&mut self, rhs: Data::Item)
     where
-        Data: ContiguousContainerMut,
+        Data: MutStorage,
         Data::Item: MulAssign,
     {
         for a in self.data.slice_mut().iter_mut() {
@@ -210,7 +212,7 @@ where
 
     pub fn scaled_by(mut self, rhs: Data::Item) -> Self
     where
-        Data: ContiguousContainerMut,
+        Data: MutStorage,
         Data::Item: MulAssign,
     {
         self.scale_by(rhs);
@@ -219,7 +221,7 @@ where
 
     pub fn scale_by_inv(&mut self, rhs: Data::Item)
     where
-        Data: ContiguousContainerMut,
+        Data: MutStorage,
         Data::Item: DivAssign,
     {
         for a in self.data.slice_mut().iter_mut() {
@@ -229,7 +231,7 @@ where
 
     pub fn scaled_by_inv(mut self, rhs: Data::Item) -> Self
     where
-        Data: ContiguousContainerMut,
+        Data: MutStorage,
         Data::Item: DivAssign,
     {
         self.scale_by_inv(rhs);
@@ -238,9 +240,9 @@ where
 }
 
 #[cfg(feature = "generic_const_exprs")]
-impl<const ORDER: usize, const N: usize, Data> Diff<Fixed<ORDER>, Fixed<N>, Data>
+impl<const ORDER: usize, const N: usize, Data> Differential<Fixed<ORDER>, Fixed<N>, Data>
 where
-    Data: ContiguousContainer,
+    Data: ConstStorage,
 {
     pub fn fixed_derivatives(&self) -> Derivatives<Fixed<ORDER>, Fixed<N>, &[Data::Item; number_of_elements(N, ORDER) - 1]>
     where
@@ -250,9 +252,9 @@ where
     }
 }
 
-impl<ORDER: Dim, N: Dim, Data> Index<&[usize]> for Diff<ORDER, N, Data>
+impl<Order: Dim, N: Dim, Data> Index<&[usize]> for Differential<Order, N, Data>
 where
-    Data: ContiguousContainer,
+    Data: ConstStorage,
 {
     type Output = Data::Item;
 
@@ -262,9 +264,9 @@ where
     }
 }
 
-impl<ORDER: Dim, N: Dim, Data> IndexMut<&[usize]> for Diff<ORDER, N, Data>
+impl<Order: Dim, N: Dim, Data> IndexMut<&[usize]> for Differential<Order, N, Data>
 where
-    Data: ContiguousContainerMut,
+    Data: MutStorage,
 {
     fn index_mut(&mut self, index: &[usize]) -> &mut Self::Output {
         let offset = offset_of(index, self.n(), self.order());
@@ -272,9 +274,9 @@ where
     }
 }
 
-impl<const ORDER: usize, const N: usize, Data> Index<&[usize; N]> for Diff<Fixed<ORDER>, Fixed<N>, Data>
+impl<const ORDER: usize, const N: usize, Data> Index<&[usize; N]> for Differential<Fixed<ORDER>, Fixed<N>, Data>
 where
-    Data: ContiguousContainer,
+    Data: ConstStorage,
 {
     type Output = Data::Item;
     fn index(&self, index: &[usize; N]) -> &Self::Output {
@@ -283,9 +285,9 @@ where
     }
 }
 
-impl<const ORDER: usize, const N: usize, Data> IndexMut<&[usize; N]> for Diff<Fixed<ORDER>, Fixed<N>, Data>
+impl<const ORDER: usize, const N: usize, Data> IndexMut<&[usize; N]> for Differential<Fixed<ORDER>, Fixed<N>, Data>
 where
-    Data: ContiguousContainerMut,
+    Data: MutStorage,
 {
     fn index_mut(&mut self, index: &[usize; N]) -> &mut Self::Output {
         let offset = offset_of(index, N, ORDER);
@@ -293,12 +295,12 @@ where
     }
 }
 
-impl<Order: Dim, N: Dim, Data> IntoOwned for Diff<Order, N, Data>
+impl<Order: Dim, N: Dim, Data> IntoOwned for Differential<Order, N, Data>
 where
-    Data: ContiguousContainer,
-    Data::Owned: ContiguousContainer,
+    Data: ConstStorage,
+    Data::Owned: ConstStorage,
 {
-    type Owned = Diff<Order, N, Data::Owned>;
+    type Owned = Differential<Order, N, Data::Owned>;
 
     fn into_owned(self) -> Self::Owned {
         Self::Owned::from_data(self.order, self.n, self.data.into_owned())

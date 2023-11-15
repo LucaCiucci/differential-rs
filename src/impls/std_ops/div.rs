@@ -1,16 +1,16 @@
 use super::*;
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::Div<Diff<Order, N, Data2>> for Diff<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> std::ops::Div<Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
-    Data: ContiguousContainer,
-    Data2: ContiguousContainer<Item = Data::Item> + Clone,
-    Data::Owned: ContiguousContainerMut<Item = Data::Item> + Clone,
-    Data2::Owned: ContiguousContainer<Item = Data::Item>,
+    Data: ConstStorage,
+    Data2: ConstStorage<Item = Data::Item> + Clone,
+    Data::Owned: MutStorage<Item = Data::Item> + Clone,
+    Data2::Owned: ConstStorage<Item = Data::Item>,
     Data::Item: Zero + for <'a> std::ops::Div<&'a Data::Item, Output = Data::Item> + for <'a> std::ops::Mul<&'a Data::Item, Output = Data::Item> + std::ops::AddAssign + std::ops::SubAssign + Real + std::ops::MulAssign + std::ops::DivAssign,
 {
-    type Output = Diff<Order, N, Data::Owned>;
+    type Output = Differential<Order, N, Data::Owned>;
 
-    fn div(self, other: Diff<Order, N, Data2>) -> Self::Output {
+    fn div(self, other: Differential<Order, N, Data2>) -> Self::Output {
         assert_eq!(self.n(), other.n());
         if self.order() == other.order() && self.n() == 1 {
             let order = self.order;
@@ -76,28 +76,28 @@ where
     }
 }
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::Div<&Diff<Order, N, Data2>> for Diff<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> std::ops::Div<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
-    Data: ContiguousContainer,
-    Data2: ContiguousContainer<Item = Data::Item> + Clone,
-    Data::Owned: ContiguousContainerMut<Item = Data::Item> + Clone,
-    Data2::Owned: ContiguousContainer<Item = Data::Item>,
+    Data: ConstStorage,
+    Data2: ConstStorage<Item = Data::Item> + Clone,
+    Data::Owned: MutStorage<Item = Data::Item> + Clone,
+    Data2::Owned: ConstStorage<Item = Data::Item>,
     Data::Item: Zero + for <'a> std::ops::Div<&'a Data::Item, Output = Data::Item> + for <'a> std::ops::Mul<&'a Data::Item, Output = Data::Item> + std::ops::AddAssign + std::ops::SubAssign + Real + std::ops::MulAssign + std::ops::DivAssign,
 {
-    type Output = Diff<Order, N, Data::Owned>;
+    type Output = Differential<Order, N, Data::Owned>;
 
-    fn div(self, other: &Diff<Order, N, Data2>) -> Self::Output {
+    fn div(self, other: &Differential<Order, N, Data2>) -> Self::Output {
         self.div(other.clone())
     }
 }
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::DivAssign<&Diff<Order, N, Data2>> for Diff<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> std::ops::DivAssign<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
-    Data: ContiguousContainer, // TODO use mut to avoid clone
-    Data2: ContiguousContainer<Item = Data::Item> + Clone,
-    Self: for <'a> std::ops::Div<&'a Diff<Order, N, Data2>, Output = Self> + Clone, // TODO without Clone
+    Data: ConstStorage, // TODO use mut to avoid clone
+    Data2: ConstStorage<Item = Data::Item> + Clone,
+    Self: for <'a> std::ops::Div<&'a Differential<Order, N, Data2>, Output = Self> + Clone, // TODO without Clone
 {
-    fn div_assign(&mut self, other: &Diff<Order, N, Data2>) {
+    fn div_assign(&mut self, other: &Differential<Order, N, Data2>) {
         *self = self.clone() / other;
     }
 }

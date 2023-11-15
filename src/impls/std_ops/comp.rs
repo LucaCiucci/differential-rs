@@ -1,8 +1,8 @@
 use super::*;
 
-impl<Order: Dim, N: Dim, Data> PartialEq for Diff<Order, N, Data>
+impl<Order: Dim, N: Dim, Data> PartialEq for Differential<Order, N, Data>
 where
-    Data: ContiguousContainer,
+    Data: ConstStorage,
     Data::Item: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
@@ -10,9 +10,9 @@ where
     }
 }
 
-impl<Order: Dim, N: Dim, Data> PartialOrd for Diff<Order, N, Data>
+impl<Order: Dim, N: Dim, Data> PartialOrd for Differential<Order, N, Data>
 where
-    Data: ContiguousContainer,
+    Data: ConstStorage,
     Data::Item: PartialOrd,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {

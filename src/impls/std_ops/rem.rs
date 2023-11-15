@@ -1,15 +1,15 @@
 use super::*;
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::Rem<Diff<Order, N, Data2>> for Diff<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> std::ops::Rem<Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
-    Data: ContiguousContainer,
-    Data2: ContiguousContainer<Item = Data::Item>,
-    Data::Owned: ContiguousContainer<Item = Data::Item>,
+    Data: ConstStorage,
+    Data2: ConstStorage<Item = Data::Item>,
+    Data::Owned: ConstStorage<Item = Data::Item>,
     Data::Item: std::ops::Rem<Output = Data::Item> + std::ops::MulAssign + Clone + Zero + Real,// + std::ops::AddAssign + std::ops::MulAssign,
 {
-    type Output = Diff<Order, N, Data::Owned>;
+    type Output = Differential<Order, N, Data::Owned>;
 
-    fn rem(self, rhs: Diff<Order, N, Data2>) -> Self::Output {
+    fn rem(self, rhs: Differential<Order, N, Data2>) -> Self::Output {
         // TODO to check, also is it correct for negative values?
         let rem = self.value().clone() % rhs.value().clone();
         let i_div = (self.value().clone() - rem.clone()) / rhs.value().clone();
@@ -21,14 +21,14 @@ where
     }
 }
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::RemAssign<Diff<Order, N, Data2>> for Diff<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> std::ops::RemAssign<Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
-    Data: ContiguousContainer,
-    Data2: ContiguousContainer<Item = Data::Item>,
-    Data::Owned: ContiguousContainer<Item = Data::Item>,
-    Self: std::ops::Rem<Diff<Order, N, Data2>, Output = Self> + Clone, // TODO without Clone
+    Data: ConstStorage,
+    Data2: ConstStorage<Item = Data::Item>,
+    Data::Owned: ConstStorage<Item = Data::Item>,
+    Self: std::ops::Rem<Differential<Order, N, Data2>, Output = Self> + Clone, // TODO without Clone
 {
-    fn rem_assign(&mut self, rhs: Diff<Order, N, Data2>) {
+    fn rem_assign(&mut self, rhs: Differential<Order, N, Data2>) {
         *self = self.clone() % rhs;
     }
 }

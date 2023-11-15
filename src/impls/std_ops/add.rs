@@ -1,9 +1,9 @@
 use super::*;
 
-impl<Order: Dim, N: Dim, Data> std::ops::Add for Diff<Order, N, Data>
+impl<Order: Dim, N: Dim, Data> std::ops::Add for Differential<Order, N, Data>
 where
-    Data: ContiguousContainer,
-    Data::Owned: ContiguousContainerMut<Item = Data::Item>,
+    Data: ConstStorage,
+    Data::Owned: MutStorage<Item = Data::Item>,
     Data::Item: std::ops::AddAssign,
 {
     type Output = <Self as IntoOwned>::Owned;
@@ -13,10 +13,10 @@ where
     }
 }
 
-impl<Order: Dim, N: Dim, Data> std::ops::Add<&Diff<Order, N, Data>> for Diff<Order, N, Data>
+impl<Order: Dim, N: Dim, Data> std::ops::Add<&Differential<Order, N, Data>> for Differential<Order, N, Data>
 where
-    Data: ContiguousContainer,
-    Data::Owned: ContiguousContainerMut<Item = Data::Item>,
+    Data: ConstStorage,
+    Data::Owned: MutStorage<Item = Data::Item>,
     Data::Item: std::ops::AddAssign,
 {
     type Output = <Self as IntoOwned>::Owned;
@@ -29,24 +29,24 @@ where
 }
 
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::AddAssign<Diff<Order, N, Data2>> for Diff<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> std::ops::AddAssign<Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
-    Data: ContiguousContainerMut,
-    Data2: ContiguousContainer,
+    Data: MutStorage,
+    Data2: ConstStorage,
     Data::Item: std::ops::AddAssign<Data2::Item>,
 {
-    fn add_assign(&mut self, other: Diff<Order, N, Data2>) {
+    fn add_assign(&mut self, other: Differential<Order, N, Data2>) {
         self.add_assign(&other)
     }
 }
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::AddAssign<&Diff<Order, N, Data2>> for Diff<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> std::ops::AddAssign<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
-    Data: ContiguousContainerMut,
-    Data2: ContiguousContainer,
+    Data: MutStorage,
+    Data2: ConstStorage,
     Data::Item: std::ops::AddAssign<Data2::Item>,
 {
-    fn add_assign(&mut self, other: &Diff<Order, N, Data2>) {
+    fn add_assign(&mut self, other: &Differential<Order, N, Data2>) {
         if self.order() == other.order() && self.n() == other.n() {
             let l = self.data.slice_mut();
             let r = other.data_slice();

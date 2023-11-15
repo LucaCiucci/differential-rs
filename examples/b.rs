@@ -3,7 +3,7 @@ use std::hint::black_box;
 
 
 fn main() {
-    let d = Diff::<Fixed::<4>, Fixed::<1>, &[f64; 5]>::from_data(
+    let d = Differential::<Fixed::<4>, Fixed::<1>, &[f64; 5]>::from_data(
         Fixed,
         Fixed,
         &[2.0, 1.0, 0.0, 0.0, 0.0],
@@ -14,7 +14,7 @@ fn main() {
     println!("{:?}", d);
     //println!("{:?}", d.drop_one_order());
 
-    let diff = Diff::from_data(
+    let diff = Differential::from_data(
         Dynamic(9),
         Fixed::<1>,
         vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
@@ -27,12 +27,12 @@ fn main() {
     println!("{:?}", (diff.clone() * diff.clone()));
     println!("{:?}", diff.clone().drop_one_order()[&[1]]);
 
-    let d = Diff::<Fixed::<1>, Fixed::<1>, &[f64; 2]>::from_data(
+    let d = Differential::<Fixed::<1>, Fixed::<1>, &[f64; 2]>::from_data(
         Fixed,
         Fixed,
         &[2.0, 1.0],
     );
-    let _d2: Diff<Fixed<1>, Fixed<1>, [f64; 2]> = d * d;
+    let _d2: Differential<Fixed<1>, Fixed<1>, [f64; 2]> = d * d;
 
     let start = std::time::Instant::now();
     let n = 1000000u64;
@@ -53,4 +53,10 @@ fn main() {
     println!("{}ns/iter", start.elapsed().as_nanos() as f64 / 1000000000u128 as f64);
 
     //let a: i32 = 0.0f64.into();
+}
+
+#[allow(unused)]
+fn ciao() {
+    let d: Diff1 = Diff1::val_deriv(1.0, 1.0);
+    let d: Diff1 = (1.0, 1.0).into();
 }
