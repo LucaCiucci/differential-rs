@@ -21,6 +21,9 @@ mod impls;
 
 pub use alias::*;
 
+/// A differential.
+///
+/// This struct represents the differential of a function.
 #[derive(Debug, Clone, Copy)]
 pub struct Differential<Order: Dim, N: Dim, Data>
 where
