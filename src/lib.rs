@@ -12,13 +12,12 @@ use std::ops::{Index, IndexMut, MulAssign, DivAssign, AddAssign, SubAssign};
 use num_traits::real::Real;
 use num_traits::NumCast;
 
-pub mod impls;
-
 mod alias;
 mod storage; pub use storage::*;
 mod dim; pub use dim::*;
 mod derivatives; pub use derivatives::*;
 mod utils; use utils::*;
+mod impls;
 
 pub use alias::*;
 

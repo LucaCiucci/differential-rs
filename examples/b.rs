@@ -3,6 +3,8 @@ use std::hint::black_box;
 
 
 fn main() {
+    my_sqrt();
+
     let d = Differential::<Fixed::<4>, Fixed::<1>, &[f64; 5]>::from_data(
         Fixed,
         Fixed,
@@ -37,7 +39,7 @@ fn main() {
     let start = std::time::Instant::now();
     let n = 1000000u64;
     for _ in 0..n {
-        //let diff = d;
+        let diff = d;
         black_box(black_box(diff.clone()) * black_box(diff.clone()));
     }
     println!("{}ms", start.elapsed().as_millis());
@@ -53,6 +55,15 @@ fn main() {
     println!("{}ns/iter", start.elapsed().as_nanos() as f64 / 1000000000u128 as f64);
 
     //let a: i32 = 0.0f64.into();
+}
+
+fn my_sqrt() {
+    let x = Differential::from_data(Fixed::<20>, Fixed::<1>, [9.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+    let mut diff = Differential::from_data(Fixed::<20>, Fixed::<1>, [3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+    for i in 0..10 {
+        diff = (diff + x / diff).scaled_by_inv(2.0);
+        println!("{}: {:#?}", i, diff);
+    }
 }
 
 #[allow(unused)]
