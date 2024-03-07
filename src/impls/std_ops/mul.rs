@@ -11,9 +11,9 @@ where
     type Output = Differential<Order, N, Data::Owned>;
 
     fn mul(self, other: Differential<Order, N, Data2>) -> Self::Output {
-        assert_eq!(self.n(), other.n());
-        if self.order() == other.order() && self.n() == 1 {
-            match (self.order(), true) {
+        assert_eq!(self.n().value(), other.n().value());
+        if self.order().value() == other.order().value() && self.n().value() == 1 {
+            match (self.order().value(), true) {
                 // TODO these specializations will speed up the code a lot in debug mode
                 // but they slow down the code in release mode! Should I remove them for concistency
                 // or enable them only in debug mode?
@@ -73,7 +73,7 @@ where
             }
         } else {
             let value = self.value().clone() * other.value();
-            if self.order() == 0 {
+            if self.order().value() == 0 {
                 Self::Output::from_data(self.order, self.n, Data::from_slice(&[value]))
             } else {
                 let derivatives = self.derivatives() * &self.drop_one_order() + other.derivatives() * &other.drop_one_order();

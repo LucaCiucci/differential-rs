@@ -47,7 +47,7 @@ where
     Data::Item: std::ops::SubAssign<Data2::Item>,
 {
     fn sub_assign(&mut self, other: &Differential<Order, N, Data2>) {
-        if self.order() == other.order() && self.n() == other.n() {
+        if self.order().value() == other.order().value() && self.n().value() == other.n().value() {
             let l = self.data.slice_mut();
             let r = other.data_slice();
             assert_eq!(l.len(), r.len());

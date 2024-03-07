@@ -11,8 +11,8 @@ where
     type Output = Differential<Order, N, Data::Owned>;
 
     fn div(self, other: Differential<Order, N, Data2>) -> Self::Output {
-        assert_eq!(self.n(), other.n());
-        if self.order() == other.order() && self.n() == 1 {
+        assert_eq!(self.n().value(), other.n().value());
+        if self.order().value() == other.order().value() && self.n().value() == 1 {
             let order = self.order;
             let n = self.n;
             let mut data = self.polynomial_coeffs().clone();
@@ -62,7 +62,7 @@ where
             Self::Output::from_polynomial_coeffs(data, order, n)
         } else {
             let value = self.value().clone() / other.value();
-            if self.order() == 0 {
+            if self.order().value() == 0 {
                 Self::Output::from_data(self.order, self.n, Data::from_slice(&[value]))
             } else {
                 // GENERAL CASE

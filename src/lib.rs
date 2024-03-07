@@ -44,12 +44,12 @@ where
         }
     }
 
-    pub fn order(&self) -> usize {
-        self.order.value()
+    pub fn order(&self) -> Order {
+        self.order
     }
 
-    pub fn n(&self) -> usize {
-        self.n.value()
+    pub fn n(&self) -> N {
+        self.n
     }
 
     pub fn value(&self) -> &Data::Item {
@@ -67,28 +67,28 @@ where
         &mut self.data.slice_mut()[0]
     }
 
-    pub fn derivatives(&self) -> Derivatives<Dynamic, Dynamic, &[Data::Item]>
+    pub fn derivatives(&self) -> Derivatives<Dynamic, N, &[Data::Item]> // TODO Derivatives<Dynamic, N, &[Data::Item]>
     {
-        Derivatives::<Dynamic, Dynamic, &[Data::Item]>::new(
-            Dynamic(self.order()),
-            Dynamic(self.n()),
+        Derivatives::<Dynamic, N, &[Data::Item]>::new(
+            Dynamic(self.order().value()),
+            self.n(),
             &self.data.slice()[1..]
         )
     }
 
-    pub fn drop_one_order(&self) -> Differential<Dynamic, Dynamic, Cow<[Data::Item]>> {
-        assert!(self.order() > 0);
-        if self.n() == 1 {
+    pub fn drop_one_order(&self) -> Differential<Dynamic, N, Cow<[Data::Item]>> { // TODO Derivatives<Dynamic, N, &[Data::Item]>
+        assert!(self.order().value() > 0);
+        if self.n().value() == 1 {
             Differential::from_data(
-                Dynamic(self.order() - 1),
-                Dynamic(1),
-                self.data.slice()[0..self.order()].into()
+                Dynamic(self.order().value() - 1),
+                self.n,
+                self.data.slice()[0..self.order().value()].into()
             )
         } else {
-            if self.order() == 1 {
+            if self.order().value() == 1 {
                 Differential::from_data(
                     Dynamic(0),
-                    Dynamic(self.n()),
+                    self.n(),
                     self.data.slice()[0..1].into()
                 )
             } else {
@@ -98,7 +98,7 @@ where
                 // this might be solved by using drop_one_order that accepts a visitor
                 // instead of returning a new Diff
                 let data = std::iter::once(self.data.slice()[0].clone())
-                    .chain((0..self.n())
+                    .chain((0..self.n().value())
                         .rev()
                         .map(|i| {
                             let d = derivatives.get(i);
@@ -110,8 +110,8 @@ where
                     .collect::<Vec<_>>();
 
                 Differential::from_data(
-                    Dynamic(self.order() - 1),
-                    Dynamic(self.n()),
+                    Dynamic(self.order().value() - 1),
+                    self.n(),
                     data.into()
                 )
             }
@@ -123,16 +123,16 @@ where
         offset: usize,
     ) -> Differential<Dynamic, Dynamic, &[Data::Item]> {
         Differential::from_data(
-            Dynamic(self.order()),
-            Dynamic(self.n() - offset),
+            Dynamic(self.order().value()),
+            Dynamic(self.n().value() - offset),
             &self.data.slice(), // TODO <- correct range
         )
     }
 
     pub fn as_dynamic(&self) -> Differential<Dynamic, Dynamic, &[Data::Item]> {
         Differential::from_data(
-            Dynamic(self.order()),
-            Dynamic(self.n()),
+            Dynamic(self.order().value()),
+            Dynamic(self.n().value()),
             self.data.slice()
         )
     }
@@ -141,7 +141,7 @@ where
     where
         Data::Item: Real + MulAssign,
     {
-        assert!(self.n() == 1);
+        assert!(self.n().value() == 1);
         let mut divider = <Data::Item as NumCast>::from(1).unwrap();
         self.data.map_into_owned(|c, i| {
             divider *= <Data::Item as NumCast>::from(i.max(1)).unwrap();
@@ -258,7 +258,7 @@ where
     type Output = Data::Item;
 
     fn index(&self, index: &[usize]) -> &Self::Output {
-        let offset = offset_of(index, self.n(), self.order());
+        let offset = offset_of(index, self.n().value(), self.order().value());
         &self.data.slice()[offset]
     }
 }
@@ -268,7 +268,7 @@ where
     Data: MutStorage,
 {
     fn index_mut(&mut self, index: &[usize]) -> &mut Self::Output {
-        let offset = offset_of(index, self.n(), self.order());
+        let offset = offset_of(index, self.n().value(), self.order().value());
         &mut self.data.slice_mut()[offset]
     }
 }
