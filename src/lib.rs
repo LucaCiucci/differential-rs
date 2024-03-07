@@ -18,6 +18,7 @@ mod dim; pub use dim::*;
 mod derivatives; pub use derivatives::*;
 mod utils; use utils::*;
 mod impls;
+mod diff_index; pub use diff_index::*;
 
 pub use alias::*;
 
@@ -254,45 +255,24 @@ where
     }
 }
 
-impl<Order: Dim, N: Dim, Data> Index<&[usize]> for Differential<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Idx: DiffIndex> Index<Idx> for Differential<Order, N, Data>
 where
     Data: ConstStorage,
 {
     type Output = Data::Item;
 
-    fn index(&self, index: &[usize]) -> &Self::Output {
+    fn index(&self, index: Idx) -> &Self::Output {
         let offset = offset_of(index, self.n().value(), self.order().value());
         &self.data.slice()[offset]
     }
 }
 
-impl<Order: Dim, N: Dim, Data> IndexMut<&[usize]> for Differential<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Idx: DiffIndex> IndexMut<Idx> for Differential<Order, N, Data>
 where
     Data: MutStorage,
 {
-    fn index_mut(&mut self, index: &[usize]) -> &mut Self::Output {
+    fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
         let offset = offset_of(index, self.n().value(), self.order().value());
-        &mut self.data.slice_mut()[offset]
-    }
-}
-
-impl<const ORDER: usize, const N: usize, Data> Index<&[usize; N]> for Differential<Fixed<ORDER>, Fixed<N>, Data>
-where
-    Data: ConstStorage,
-{
-    type Output = Data::Item;
-    fn index(&self, index: &[usize; N]) -> &Self::Output {
-        let offset = offset_of(index, N, ORDER);
-        &self.data.slice()[offset]
-    }
-}
-
-impl<const ORDER: usize, const N: usize, Data> IndexMut<&[usize; N]> for Differential<Fixed<ORDER>, Fixed<N>, Data>
-where
-    Data: MutStorage,
-{
-    fn index_mut(&mut self, index: &[usize; N]) -> &mut Self::Output {
-        let offset = offset_of(index, N, ORDER);
         &mut self.data.slice_mut()[offset]
     }
 }

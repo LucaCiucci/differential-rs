@@ -1,3 +1,5 @@
+use crate::DiffIndex;
+
 
 
 #[inline(always)]
@@ -26,46 +28,54 @@ pub const fn number_of_elements(n: usize, order: usize) -> usize {
 
 #[inline(always)]
 pub fn offset_of( // TODO const fn
-    index: &[usize],
+    index: impl DiffIndex,
     n: usize,
     order: usize,
 ) -> usize {
+    let orders = index.into_orders();
+
     // TODO if N = 1 (1D) and order very large, this will overflow as it is recursive
     // (same thing if N large) maybe use a loop instead
-    assert!(index.iter().sum::<usize>() <= order);
-    if index.len() == 0 {
+    assert!(orders.clone().sum::<usize>() <= order);
+    if orders.clone().count() == 0 {
         0
     } else {
-        offset_of_impl(index[0], &index[1..], n, order)
+        let mut orders = orders;
+        let index_0 = orders.next().unwrap();
+        offset_of_impl(index_0, orders, n, order)
     }
 }
 
 pub fn offset_of_impl( // TODO const fn
     index_0: usize,
-    index_tail: &[usize],
+    index_tail: impl DiffIndex,
     n: usize,
     order: usize,
 ) -> usize {
+    let tail_orders = index_tail.into_orders();
+
     // TODO if N = 1 (1D) and order very large, this will overflow as it is recursive
     // (same thing if N large) maybe use a loop instead
     if order == 0 {
         // TODO debug_assert ?
         assert!(index_0 == 0);
-        assert!(index_tail.iter().all(|&i| i == 0));
+        assert!(tail_orders.clone().all(|i| i == 0));
     }
     if index_0 == 0 {
-        if index_tail.len() == 0 {
+        if tail_orders.clone().count() == 0 {
             0
         } else {
+            let mut tail_orders = tail_orders;
+            let index_0 = tail_orders.next().unwrap();
             offset_of_impl(
-                index_tail[0],
-                &index_tail[1..],
+                index_0,
+                tail_orders,
                 n - 1,
                 order,
             )
         }
     } else {
-        (1 + offset_under(n, 0, order)) + offset_of_impl(index_0 - 1, index_tail, n, order - 1)
+        (1 + offset_under(n, 0, order)) + offset_of_impl(index_0 - 1, tail_orders, n, order - 1)
     }
 }
 

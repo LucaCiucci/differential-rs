@@ -20,14 +20,17 @@ fn main() {
         Dynamic(9),
         Fixed::<1>,
         vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+        //vec![1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     );
 
-    println!("{:?}", diff[&[1]]);
+    println!("---");
+    println!("{:?}", (diff.clone() * diff.clone() * diff.clone() * diff.clone()));
+    println!("{:?}", diff[[1]]);
     println!("{:?}", diff.drop_one_order());
     println!("{:?}", diff.drop_one_order() * diff.drop_one_order());
     println!("{:?}", (diff.clone() * diff.clone()).drop_one_order());
     println!("{:?}", (diff.clone() * diff.clone()));
-    println!("{:?}", diff.clone().drop_one_order()[&[1]]);
+    println!("{:?}", diff.clone().drop_one_order()[[1]]);
 
     let d = Differential::<Fixed::<1>, Fixed::<1>, &[f64; 2]>::from_data(
         Fixed,
