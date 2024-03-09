@@ -15,7 +15,7 @@ mod alias;
 mod storage; pub use storage::*;
 mod dim; pub use dim::*;
 mod derivatives; pub use derivatives::*;
-mod utils; use utils::*;
+pub mod utils; use utils::*;
 mod impls;
 mod diff_index; pub use diff_index::*;
 
@@ -47,11 +47,13 @@ where
         }
     }
 
-    pub fn new_constant(order: Order, n: N, value: Data::Item) -> Self
+    pub fn new_constant(value: Data::Item) -> Self
     where
         Data::Item: Zero,
         Data: Owned,
     {
+        let order = Order::undef();
+        let n = N::undef();
         Self::from_data(
             order,
             n,
@@ -59,7 +61,7 @@ where
         )
     }
 
-    pub fn into_defined_order(mut self, order: Order) -> Self
+    pub fn define_order(&mut self, order: Order)
     where
         Data: MutStorage,
         Data::Item: Zero,
@@ -80,10 +82,18 @@ where
                 self.data.assign_iter(1, std::iter::repeat_with(Zero::zero).take(count - 1));
             }
         }
+    }
+
+    pub fn into_defined_order(mut self, order: Order) -> Self
+    where
+        Data: MutStorage,
+        Data::Item: Zero,
+    {
+        self.define_order(order);
         self
     }
 
-    pub fn into_defined_n(mut self, n: N) -> Self
+    pub fn define_n(&mut self, n: N)
     where
         Data: MutStorage,
         Data::Item: Zero,
@@ -104,6 +114,14 @@ where
                 self.data.assign_iter(1, std::iter::repeat_with(Zero::zero).take(count - 1));
             }
         }
+    }
+
+    pub fn into_defined_n(mut self, n: N) -> Self
+    where
+        Data: MutStorage,
+        Data::Item: Zero,
+    {
+        self.define_n(n);
         self
     }
 
@@ -243,8 +261,7 @@ where
         let mut divider = <Data::Item as NumCast>::from(1).unwrap();
         self.data.map_into_owned(|c, i| {
             divider *= <Data::Item as NumCast>::from(i.max(1)).unwrap();
-            let r = c / divider;
-            r
+            *c = c.clone() / divider;
         })
     }
 
@@ -257,8 +274,7 @@ where
         let mut multiplier = <Data::Item as NumCast>::from(1).unwrap();
         let data = data.map_into_owned(|c, i| {
             multiplier *= <Data::Item as NumCast>::from(i.max(1)).unwrap();
-            let r = c * multiplier;
-            r
+            *c = c.clone() * multiplier;
         });
         Differential::from_data(order, n, data)
     }

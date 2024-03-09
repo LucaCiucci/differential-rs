@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 pub trait Dim: Debug + Copy {
     fn value(&self) -> Option<usize>;
-    fn free() -> Self;
+    fn undef() -> Self;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -14,7 +14,7 @@ impl<const N: usize> Dim for Fixed<N> {
     fn value(&self) -> Option<usize> {
         Some(N)
     }
-    fn free() -> Self {
+    fn undef() -> Self {
         Self
     }
 }
@@ -26,7 +26,7 @@ impl Dim for Dynamic {
     fn value(&self) -> Option<usize> {
         self.0
     }
-    fn free() -> Self {
+    fn undef() -> Self {
         Self(None)
     }
 }

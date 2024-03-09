@@ -47,8 +47,8 @@ impl<'a, S: ConstStorage> ConstStorage for StorageSlice<'a, S> {
     fn slice(&self) -> &[S::Item] {
         self.slice
     }
-    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned {
-        S::from_iter(self.slice.iter().cloned().enumerate().map(|(i, x)| f(x, i)))
+    fn map_into_owned(self, mut f: impl FnMut(&mut Self::Item, usize)) -> Self::Owned {
+        S::from_iter(self.slice.iter().cloned().enumerate().map(|(i, mut x)| { f(&mut x, i); x }))
     }
     fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Self::Owned {
         S::owned_from_fn(len, f)
@@ -92,8 +92,8 @@ impl<'a, S: MutStorage> ConstStorage for MutStorageSlice<'a, S> {
     fn slice(&self) -> &[S::Item] {
         self.slice
     }
-    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned {
-        S::from_iter(self.slice.iter().cloned().enumerate().map(|(i, x)| f(x, i)))
+    fn map_into_owned(self, mut f: impl FnMut(&mut Self::Item, usize)) -> Self::Owned {
+        S::from_iter(self.slice.iter().cloned().enumerate().map(|(i, mut x)| { f(&mut x, i); x }))
     }
     fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Self::Owned {
         S::owned_from_fn(len, f)
@@ -160,9 +160,9 @@ where
             CowStorage::Owned(owned) => owned.slice(),
         }
     }
-    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> S::Owned {
+    fn map_into_owned(self, mut f: impl FnMut(&mut Self::Item, usize)) -> S::Owned {
         match self {
-            CowStorage::Borrowed(slice) => S::from_iter(slice.iter().cloned().enumerate().map(|(i, x)| f(x, i))),
+            CowStorage::Borrowed(slice) => S::from_iter(slice.iter().cloned().enumerate().map(|(i, mut x)| { f(&mut x, i); x })),
             CowStorage::Owned(owned) => owned.map_into_owned(f),
         }
     }
@@ -201,7 +201,7 @@ pub trait ConstStorage: IntoOwned {
     type Item: Clone;
     fn is_owned(&self) -> bool;
     fn slice(&self) -> &[Self::Item];
-    fn map_into_owned(self, f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned;
+    fn map_into_owned(self, f: impl FnMut(&mut Self::Item, usize)) -> Self::Owned;
     fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Self::Owned;
     fn from_slice(slice: &[Self::Item]) -> Self::Owned;
     fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> Self::Owned;
@@ -247,10 +247,10 @@ where
     fn slice(&self) -> &[T] {
         self
     }
-    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned {
+    fn map_into_owned(self, mut f: impl FnMut(&mut Self::Item, usize)) -> Self::Owned {
         let mut result = self;
         for i in 0..N {
-            result[i] = f(result[i].clone(), i);
+            f(&mut result[i], i);
         }
         result
     }
@@ -306,10 +306,10 @@ where
     fn slice(&self) -> &[T] {
         &self[..]
     }
-    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned {
+    fn map_into_owned(self, mut f: impl FnMut(&mut Self::Item, usize)) -> Self::Owned {
         let mut result = self.clone();
         for i in 0..N {
-            result[i] = f(result[i].clone(), i);
+            f(&mut result[i], i);
         }
         result
     }
@@ -352,10 +352,10 @@ where
     fn slice(&self) -> &[T] {
         &self[..]
     }
-    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned {
+    fn map_into_owned(self, mut f: impl FnMut(&mut Self::Item, usize)) -> Self::Owned {
         let mut result = self.clone();
         for i in 0..N {
-            result[i] = f(result[i].clone(), i);
+            f(&mut result[i], i);
         }
         result
     }
@@ -410,8 +410,8 @@ where
     fn slice(&self) -> &[T] {
         self
     }
-    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned {
-        self.iter().cloned().enumerate().map(|(i, x)| f(x, i)).collect()
+    fn map_into_owned(self, mut f: impl FnMut(&mut Self::Item, usize)) -> Self::Owned {
+        self.iter().cloned().enumerate().map(|(i, mut x)| { f(&mut x, i); x }).collect()
     }
     fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Self::Owned {
         (0..len).map(f).collect()
@@ -451,8 +451,8 @@ where
     fn slice(&self) -> &[T] {
         &self[..]
     }
-    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned {
-        self.iter().cloned().enumerate().map(|(i, x)| f(x, i)).collect()
+    fn map_into_owned(self, mut f: impl FnMut(&mut Self::Item, usize)) -> Self::Owned {
+        self.iter().cloned().enumerate().map(|(i, mut x)| { f(&mut x, i); x }).collect()
     }
     fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Self::Owned {
         (0..len).map(f).collect()
@@ -487,6 +487,7 @@ where
     }
 }
 
+
 impl<T> IntoOwned for Vec<T>
 where
     T: Clone,
@@ -508,8 +509,8 @@ where
     fn slice(&self) -> &[T] {
         self
     }
-    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned {
-        IntoIterator::into_iter(self).enumerate().map(|(i, x)| f(x, i)).collect()
+    fn map_into_owned(self, mut f: impl FnMut(&mut Self::Item, usize)) -> Self::Owned {
+        self.iter().cloned().enumerate().map(|(i, mut x)| { f(&mut x, i); x }).collect()
     }
     fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Self::Owned {
         (0..len).map(f).collect()
@@ -567,8 +568,8 @@ where
     fn slice(&self) -> &[Self::Item] {
         self
     }
-    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Vec<T> {
-        IntoIterator::into_iter(self.into_owned()).enumerate().map(|(i, x)| f(x, i)).collect()
+    fn map_into_owned(self, mut f: impl FnMut(&mut Self::Item, usize)) -> Vec<T> {
+        self.iter().cloned().enumerate().map(|(i, mut x)| { f(&mut x, i); x }).collect()
     }
     fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Vec<T> {
         (0..len).map(f).collect()

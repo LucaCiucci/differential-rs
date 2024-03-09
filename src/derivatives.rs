@@ -126,7 +126,7 @@ where
     Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
     for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign,
 {
-    type Output = Derivatives<Order, N, Vec<Data::Item>>;
+    type Output = Derivatives<Order, N, Data::Owned>;
 
     fn mul(self, rhs: &Differential<Order, N, Data2>) -> Self::Output {
         // TODO maybe this should be implemented also for undefined shape?
@@ -138,12 +138,11 @@ where
                 let r = self.get(i) * &rhs.drop_first_derivatives(i);
                 r.data.make_into_iter()
             })
-            .flatten()
-            .collect::<Vec<_>>();
+            .flatten();
         Derivatives::new(
             self.order,
             self.n,
-            data
+            Data::from_iter(data),
         )
     }
 }
@@ -155,17 +154,16 @@ where
     Data2: ConstStorage<Item = Data::Item>,
     Data::Item: Add<Data2::Item, Output = Data::Item> + Clone,
 {
-    type Output = Derivatives<Order, N, Vec<Data::Item>>;
+    type Output = Derivatives<Order, N, Data::Owned>;
 
     fn add(self, rhs: Derivatives<Order, N, Data2>) -> Self::Output {
         let data = self.data.slice().iter()
             .zip(rhs.data.slice().iter())
-            .map(|(a, b)| a.clone() + b.clone())
-            .collect::<Vec<_>>();
+            .map(|(a, b)| a.clone() + b.clone());
         Derivatives::new(
             self.order,
             self.n,
-            data
+            Data::from_iter(data),
         )
     }
 }
@@ -177,17 +175,16 @@ where
     Data2: ConstStorage<Item = Data::Item>,
     Data::Item: std::ops::Sub<Data2::Item, Output = Data::Item> + Clone,
 {
-    type Output = Derivatives<Order, N, Vec<Data::Item>>;
+    type Output = Derivatives<Order, N, Data::Owned>;
 
     fn sub(self, rhs: Derivatives<Order, N, Data2>) -> Self::Output {
         let data = self.data.slice().iter()
             .zip(rhs.data.slice().iter())
-            .map(|(a, b)| a.clone() - b.clone())
-            .collect::<Vec<_>>();
+            .map(|(a, b)| a.clone() - b.clone());
         Derivatives::new(
             self.order,
             self.n,
-            data
+            Data::from_iter(data),
         )
     }
 }

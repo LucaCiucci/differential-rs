@@ -23,18 +23,18 @@ where
             if let Some(order) = self.order().value() {
                 assert_eq!(order, other.order().value().unwrap());
             }
-            let o0 = self.data.make_into_iter().next().unwrap();
-            return Differential::<Order, N, Data::Owned>::from_data(
-                other.order,
-                other.n,
-                Data::Owned::from_iter(other.data.make_into_iter().map(|x| x * o0)),
-            );
+            let mut result = other.into_owned();
+            let data = result.data.slice_mut();
+            for c in data {
+                *c *= self.data_slice()[0];
+            }
+            return result;
         } else if !other.is_shape_defined() {
             if let Some(n) = self.n().value() {
-                assert_eq!(n, other.n().value().unwrap());
+                assert_eq!(n, self.n().value().unwrap());
             }
             if let Some(order) = self.order().value() {
-                assert_eq!(order, other.order().value().unwrap());
+                assert_eq!(order, self.order().value().unwrap());
             }
             let mut result = self.into_owned();
             let data = result.data.slice_mut();
@@ -117,9 +117,8 @@ where
             } else {
                 let derivatives = self.derivatives() * &self.drop_one_order() + other.derivatives() * &other.drop_one_order();
                 let data = std::iter::once(value)
-                    .chain(derivatives.unwrap_data().into_iter())
-                    .collect::<Vec<_>>();
-                Self::Output::from_data(self.order, self.n, Data::from_slice(&data[..])) // TODO <- optimize
+                    .chain(derivatives.unwrap_data().make_into_iter());
+                Self::Output::from_data(self.order, self.n, Data::from_iter(data)) // TODO <- optimize
             }
         }
     }

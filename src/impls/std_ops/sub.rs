@@ -69,7 +69,7 @@ where
     type Output = <Self as IntoOwned>::Owned;
 
     fn neg(self) -> Self::Output {
-        let result = self.data.map_into_owned(|x, _| -x);
+        let result = self.data.map_into_owned(|x, _| *x = -x.clone());
         Self::Output::from_data(self.order, self.n, result)
     }
 }
