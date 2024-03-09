@@ -21,6 +21,94 @@ where
 
 impl<T> Owned for T where T: IntoOwned<Owned = T> {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StorageSlice<'a, S: ConstStorage> {
+    slice: &'a [S::Item],
+}
+
+impl<'a, S: ConstStorage> IntoOwned for StorageSlice<'a, S> {
+    type Owned = S::Owned;
+    fn into_owned(self) -> Self::Owned {
+        S::from_slice(self.slice)
+    }
+}
+
+impl<'a, S: ConstStorage> ConstStorage for StorageSlice<'a, S> {
+    type Item = S::Item;
+    fn is_owned(&self) -> bool {
+        false
+    }
+    fn slice(&self) -> &[S::Item] {
+        self.slice
+    }
+    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned {
+        S::from_iter(self.slice.iter().cloned().enumerate().map(|(i, x)| f(x, i)))
+    }
+    fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Self::Owned {
+        S::owned_from_fn(len, f)
+    }
+    fn from_slice(slice: &[Self::Item]) -> Self::Owned {
+        S::from_slice(slice)
+    }
+    fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> Self::Owned {
+        S::from_iter(iter)
+    }
+    fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> Self::Owned {
+        S::from_order_0(order_0, zeros)
+    }
+    fn make_into_iter(self) -> impl Iterator<Item = Self::Item> {
+        self.slice.iter().cloned()
+    }
+}
+
+pub struct MutStorageSlice<'a, S: MutStorage> {
+    slice: &'a mut [S::Item],
+}
+
+impl<'a, S: MutStorage> IntoOwned for MutStorageSlice<'a, S> {
+    type Owned = S::Owned;
+    fn into_owned(self) -> Self::Owned {
+        S::from_slice(self.slice)
+    }
+}
+
+impl<'a, S: MutStorage> ConstStorage for MutStorageSlice<'a, S> {
+    type Item = S::Item;
+    fn is_owned(&self) -> bool {
+        false
+    }
+    fn slice(&self) -> &[S::Item] {
+        self.slice
+    }
+    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned {
+        S::from_iter(self.slice.iter().cloned().enumerate().map(|(i, x)| f(x, i)))
+    }
+    fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Self::Owned {
+        S::owned_from_fn(len, f)
+    }
+    fn from_slice(slice: &[Self::Item]) -> Self::Owned {
+        S::from_slice(slice)
+    }
+    fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> Self::Owned {
+        S::from_iter(iter)
+    }
+    fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> Self::Owned {
+        S::from_order_0(order_0, zeros)
+    }
+    fn make_into_iter(self) -> impl Iterator<Item = Self::Item> {
+        self.slice.iter().cloned()
+    }
+}
+
+impl<'a, S: MutStorage> MutStorage for MutStorageSlice<'a, S> {
+    fn slice_mut(&mut self) -> &mut [S::Item] {
+        self.slice
+    }
+    fn assign_iter(&mut self, offset: usize, iter: impl IntoIterator<Item = S::Item>) {
+        self.slice.assign_iter(offset, iter)
+    }
+}
+
 /// Storage for differentials
 ///
 /// This trait implies that elements are stored in a contiguous array.
@@ -42,8 +130,11 @@ pub trait ConstStorage: IntoOwned
 
 pub trait MutStorage: ConstStorage {
     fn slice_mut(&mut self) -> &mut [Self::Item];
-    fn assign_iter(&mut self, offset: usize, iter: impl IntoIterator<Item = Self::Item>);
+    fn assign_iter(&mut self, offset: usize, iter: impl IntoIterator<Item = Self::Item>); // TODO maybe useless?
 }
+
+// TODO maybe ConstStorage and MutStorage are just too complex, maybe we could reorganize the code
+// to reduce the complexity of this module
 
 pub trait OwnedStorage: MutStorage
 where
