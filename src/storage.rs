@@ -26,6 +26,12 @@ pub struct StorageSlice<'a, S: ConstStorage> {
     slice: &'a [S::Item],
 }
 
+impl<'a, S: ConstStorage> StorageSlice<'a, S> {
+    pub fn new(slice: &'a [S::Item]) -> Self {
+        Self { slice }
+    }
+}
+
 impl<'a, S: ConstStorage> IntoOwned for StorageSlice<'a, S> {
     type Owned = S::Owned;
     fn into_owned(self) -> Self::Owned {
@@ -63,6 +69,12 @@ impl<'a, S: ConstStorage> ConstStorage for StorageSlice<'a, S> {
 
 pub struct MutStorageSlice<'a, S: MutStorage> {
     slice: &'a mut [S::Item],
+}
+
+impl<'a, S: MutStorage> MutStorageSlice<'a, S> {
+    pub fn new(slice: &'a mut [S::Item]) -> Self {
+        Self { slice }
+    }
 }
 
 impl<'a, S: MutStorage> IntoOwned for MutStorageSlice<'a, S> {
@@ -109,14 +121,83 @@ impl<'a, S: MutStorage> MutStorage for MutStorageSlice<'a, S> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CowStorage<'a, S: ConstStorage>
+where
+    S::Owned: ConstStorage<Item = S::Item>,
+{
+    Borrowed(&'a [S::Item]),
+    Owned(S::Owned),
+}
+
+impl<'a, S: ConstStorage> IntoOwned for CowStorage<'a, S>
+where
+    S::Owned: ConstStorage<Item = S::Item>,
+{
+    type Owned = S::Owned;
+    fn into_owned(self) -> S::Owned {
+        match self {
+            CowStorage::Borrowed(slice) => S::from_slice(slice),
+            CowStorage::Owned(owned) => owned,
+        }
+    }
+}
+
+impl<'a, S: ConstStorage> ConstStorage for CowStorage<'a, S>
+where
+    S::Owned: ConstStorage<Item = S::Item>,
+{
+    type Item = S::Item;
+    fn is_owned(&self) -> bool {
+        match self {
+            CowStorage::Borrowed(_) => false,
+            CowStorage::Owned(_) => true,
+        }
+    }
+    fn slice(&self) -> &[S::Item] {
+        match self {
+            CowStorage::Borrowed(slice) => slice,
+            CowStorage::Owned(owned) => owned.slice(),
+        }
+    }
+    fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> S::Owned {
+        match self {
+            CowStorage::Borrowed(slice) => S::from_iter(slice.iter().cloned().enumerate().map(|(i, x)| f(x, i))),
+            CowStorage::Owned(owned) => owned.map_into_owned(f),
+        }
+    }
+    fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> S::Owned {
+        S::owned_from_fn(len, f)
+    }
+    fn from_slice(slice: &[Self::Item]) -> S::Owned {
+        S::from_slice(slice)
+    }
+    fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> S::Owned {
+        S::from_iter(iter)
+    }
+    fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> S::Owned {
+        S::from_order_0(order_0, zeros)
+    }
+    fn make_into_iter(self) -> impl Iterator<Item = Self::Item> {
+        let iter = match &self {
+            CowStorage::Borrowed(slice) => slice.into_iter().cloned(),
+            CowStorage::Owned(_) => (&[]).into_iter().cloned(),
+        };
+        let owned = match self {
+            CowStorage::Borrowed(_) => None,
+            CowStorage::Owned(owned) => Some(owned),
+        };
+        iter.chain(owned.into_iter().flat_map(|owned| owned.make_into_iter()))
+    }
+}
+
 /// Storage for differentials
 ///
 /// This trait implies that elements are stored in a contiguous array.
 ///
 /// This trait only provides methods for immutable access to the elements,
 /// [`MutStorage`] provides methods for mutable access.
-pub trait ConstStorage: IntoOwned
-{
+pub trait ConstStorage: IntoOwned {
     type Item: Clone;
     fn is_owned(&self) -> bool;
     fn slice(&self) -> &[Self::Item];

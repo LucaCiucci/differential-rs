@@ -5,7 +5,6 @@ Provides some differentiation utilities.
 #![cfg_attr(feature = "generic_const_exprs", feature(generic_const_exprs))]
 //#![feature(generic_const_exprs)]
 
-use std::borrow::Cow;
 use std::fmt::Debug;
 use std::ops::{Index, IndexMut, MulAssign, DivAssign, AddAssign, SubAssign};
 
@@ -135,16 +134,21 @@ where
         &mut self.data.slice_mut()[0]
     }
 
-    pub fn derivatives(&self) -> Derivatives<Dynamic, N, &[Data::Item]> // TODO Derivatives<Dynamic, N, &[Data::Item]>
+    pub fn derivatives(&self) -> Derivatives<Dynamic, N, StorageSlice<Data::Owned>>
+    where
+        Data::Owned: ConstStorage<Item = Data::Item>,
     {
-        Derivatives::<Dynamic, N, &[Data::Item]>::new(
+        Derivatives::new(
             Dynamic(self.order().value()),
             self.n(),
-            &self.data.slice()[1..]
+            StorageSlice::new(&self.data.slice()[1..]),
         )
     }
 
-    pub fn drop_one_order(&self) -> Differential<Dynamic, N, Cow<[Data::Item]>> { // TODO Derivatives<Dynamic, N, &[Data::Item]>
+    pub fn drop_one_order(&self) -> Differential<Dynamic, N, CowStorage<Data::Owned>>
+    where
+        Data::Owned: ConstStorage<Item = Data::Item>,
+    { // TODO use StorageSlice in some way
         let n = self.n();
         let order = self.order();
         let (n, order) = match (n.value(), order.value()) {
@@ -152,7 +156,7 @@ where
             (_, Some(order)) => return Differential::from_data(
                 Dynamic(Some(order - 1)),
                 n,
-                self.data.slice()[..1].into(), // TODO is this correct? maybe this?:
+                CowStorage::Borrowed(&self.data.slice()[..1]), // TODO is this correct? maybe this?:
                 //<&[Data::Item] as ConstStorage>::from_order_0(
                 //    self.data.slice()[0].clone(),
                 //    || unreachable!(),
@@ -161,7 +165,7 @@ where
             _ => return Differential::from_data(
                 Dynamic(None),
                 n,
-                self.data.slice()[..1].into(),
+                CowStorage::Borrowed(&self.data.slice()[..1]),
             ),
         };
 
@@ -170,14 +174,14 @@ where
             Differential::from_data(
                 Dynamic(Some(order - 1)),
                 self.n,
-                self.data.slice()[0..order].into() // TODO correct? maybe -1?
+                CowStorage::Borrowed(&self.data.slice()[0..order]), // TODO correct? maybe -1?
             )
         } else {
             if order == 1 {
                 Differential::from_data(
                     Dynamic(Some(0)),
                     self.n(),
-                    self.data.slice()[0..1].into()
+                    CowStorage::Borrowed(&self.data.slice()[0..1]),
                 )
             } else {
                 let derivatives = self.derivatives();
@@ -191,16 +195,15 @@ where
                         .map(|i| {
                             let d = derivatives.get(i);
                             let d = d.drop_one_order();
-                            Cow::into_owned(d.data).into_iter()
+                            d.data.into_owned().make_into_iter()
                         })
                         .flatten()
-                    )
-                    .collect::<Vec<_>>();
+                    );
 
                 Differential::from_data(
                     Dynamic(Some(order - 1)),
                     self.n(),
-                    data.into()
+                    CowStorage::Owned(Data::from_iter(data)),
                 )
             }
         }
@@ -209,26 +212,26 @@ where
     pub fn drop_first_derivatives(
         &self,
         offset: usize,
-    ) -> Differential<Dynamic, Dynamic, &[Data::Item]> {
+    ) -> Differential<Dynamic, Dynamic, StorageSlice<Data>> {
         match (self.n().value(), self.order().value()) {
             (Some(n), order) => Differential::from_data(
                 Dynamic(order),
                 Dynamic(Some(n - offset)),
-                &self.data.slice(), // TODO <- correct range
+                StorageSlice::new(&self.data.slice()), // TODO <- correct range
             ),
             (None, order) => Differential::from_data(
                 Dynamic(order),
                 Dynamic(None),
-                &self.data.slice(), // TODO <- correct range
+                StorageSlice::new(&self.data.slice()), // TODO <- correct range
             ),
         }
     }
 
-    pub fn as_dynamic(&self) -> Differential<Dynamic, Dynamic, &[Data::Item]> {
+    pub fn as_dynamic(&self) -> Differential<Dynamic, Dynamic, StorageSlice<Data>> {
         Differential::from_data(
             Dynamic(self.order().value()),
             Dynamic(self.n().value()),
-            self.data.slice()
+            StorageSlice::new(&self.data.slice()),
         )
     }
 

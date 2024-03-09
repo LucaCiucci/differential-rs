@@ -1,12 +1,13 @@
+use std::ops::{Div, Mul};
+
 use super::*;
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::Div<Differential<Order, N, Data2>> for Differential<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> Div<Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
-    Data: ConstStorage,
-    Data2: ConstStorage<Item = Data::Item> + Clone,
+    Data: ConstStorage + Clone,
     Data::Owned: MutStorage<Item = Data::Item> + Clone,
-    Data2::Owned: ConstStorage<Item = Data::Item>,
-    Data::Item: Zero + for <'a> std::ops::Div<&'a Data::Item, Output = Data::Item> + for <'a> std::ops::Mul<&'a Data::Item, Output = Data::Item> + std::ops::AddAssign + std::ops::SubAssign + Real + std::ops::MulAssign + std::ops::DivAssign,
+    Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
+    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + Div<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign + DivAssign + SubAssign,
 {
     type Output = Differential<Order, N, Data::Owned>;
 
@@ -114,13 +115,12 @@ where
     }
 }
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::Div<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> Div<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
-    Data: ConstStorage,
-    Data2: ConstStorage<Item = Data::Item> + Clone,
+    Data: ConstStorage + Clone,
     Data::Owned: MutStorage<Item = Data::Item> + Clone,
-    Data2::Owned: ConstStorage<Item = Data::Item>,
-    Data::Item: Zero + for <'a> std::ops::Div<&'a Data::Item, Output = Data::Item> + for <'a> std::ops::Mul<&'a Data::Item, Output = Data::Item> + std::ops::AddAssign + std::ops::SubAssign + Real + std::ops::MulAssign + std::ops::DivAssign,
+    Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
+    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + Div<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign + DivAssign + SubAssign,
 {
     type Output = Differential<Order, N, Data::Owned>;
 
@@ -129,11 +129,11 @@ where
     }
 }
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::DivAssign<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> DivAssign<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
     Data: ConstStorage, // TODO use mut to avoid clone
     Data2: ConstStorage<Item = Data::Item> + Clone,
-    Self: for <'a> std::ops::Div<&'a Differential<Order, N, Data2>, Output = Self> + Clone, // TODO without Clone
+    Self: for <'a> Div<&'a Differential<Order, N, Data2>, Output = Self> + Clone, // TODO without Clone
 {
     fn div_assign(&mut self, other: &Differential<Order, N, Data2>) {
         *self = self.clone() / other;

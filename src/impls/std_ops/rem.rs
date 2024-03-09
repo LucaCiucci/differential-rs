@@ -4,6 +4,7 @@ impl<Order: Dim, N: Dim, Data, Data2> std::ops::Rem<Differential<Order, N, Data2
 where
     Data: ConstStorage,
     Data2: ConstStorage<Item = Data::Item>,
+    Data2::Owned: MutStorage<Item = Data::Item>,
     Data::Owned: ConstStorage<Item = Data::Item>,
     Data::Item: std::ops::Rem<Output = Data::Item> + std::ops::MulAssign + Clone + Zero + Real,// + std::ops::AddAssign + std::ops::MulAssign,
 {
@@ -13,9 +14,10 @@ where
         // TODO to check, also is it correct for negative values?
         let rem = self.value().clone() % rhs.value().clone();
         let i_div = (self.value().clone() - rem.clone()) / rhs.value().clone();
-        let derivatives = self.derivatives() - rhs.derivatives().into_owned().scaled_by(i_div);
+        let rhs_derivatives = rhs.derivatives().into_owned();
+        let derivatives = self.derivatives() - rhs_derivatives.scaled_by(i_div);
         let data = std::iter::once(rem)
-            .chain(derivatives.unwrap_data().into_iter())
+            .chain(derivatives.unwrap_data().make_into_iter())
             .collect::<Vec<_>>(); // TODO <- optimize
         Self::Output::from_data(self.order, self.n, Data::from_slice(&data[..])) // TODO <- optimize
     }
