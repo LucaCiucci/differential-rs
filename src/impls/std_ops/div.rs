@@ -11,10 +11,48 @@ where
     type Output = Differential<Order, N, Data::Owned>;
 
     fn div(self, other: Differential<Order, N, Data2>) -> Self::Output {
-        assert_eq!(self.n().value(), other.n().value());
-        if self.order().value() == other.order().value() && self.n().value() == 1 {
-            let order = self.order;
-            let n = self.n;
+        if !self.is_shape_defined() && !other.is_shape_defined() {
+            let mut result = self.into_owned();
+            result.data.slice_mut()[0] /= other.data_slice()[0];
+            return result;
+        } else if !self.is_shape_defined() {
+            if let Some(n) = self.n().value() {
+                assert_eq!(n, other.n().value().unwrap());
+            }
+            if let Some(order) = self.order().value() {
+                assert_eq!(order, other.order().value().unwrap());
+            }
+            let o0 = self.data.make_into_iter().next().unwrap();
+            return Differential::<Order, N, Data::Owned>::from_data(
+                other.order,
+                other.n,
+                Data::Owned::from_iter(other.data.make_into_iter().map(|x| x / o0)),
+            );
+        } else if !other.is_shape_defined() {
+            if let Some(n) = self.n().value() {
+                assert_eq!(n, other.n().value().unwrap());
+            }
+            if let Some(order) = self.order().value() {
+                assert_eq!(order, other.order().value().unwrap());
+            }
+            let mut result = self.into_owned();
+            let data = result.data.slice_mut();
+            for c in data {
+                *c /= other.data_slice()[0];
+            }
+            return result;
+        }
+
+        let n = self.n().value().unwrap();
+        let other_n = other.n().value().unwrap();
+        assert_eq!(n, other_n);
+
+        let order = self.order().value().unwrap();
+        let other_order = other.order().value().unwrap();
+
+        if order == other_order && n == 1 {
+            let self_n = self.n();
+            let self_order = self.order();
             let mut data = self.polynomial_coeffs().clone();
             let rhs = other.clone().polynomial_coeffs();
             let rhs = rhs.slice();
@@ -48,21 +86,21 @@ where
             */
             {
                 let data = data.slice_mut();
-                for i in 0..=order.value() {
+                for i in 0..=order {
                     // every cicle of this loop computes a coefficient
                     data[i] /= rhs[0];
                     let c = data[i];
 
                     // compute the rest (A', or A'', A''' ...)
-                    for j in 1..=(order.value() - i) {
+                    for j in 1..=(order - i) {
                         data[i + j] -= c * &rhs[j];
                     }
                 }
             }
-            Self::Output::from_polynomial_coeffs(data, order, n)
+            Self::Output::from_polynomial_coeffs(data, self_order, self_n)
         } else {
             let value = self.value().clone() / other.value();
-            if self.order().value() == 0 {
+            if order == 0 {
                 Self::Output::from_data(self.order, self.n, Data::from_slice(&[value]))
             } else {
                 // GENERAL CASE

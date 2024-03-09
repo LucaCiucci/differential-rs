@@ -30,15 +30,19 @@ impl<T> Owned for T where T: IntoOwned<Owned = T> {}
 pub trait ConstStorage: IntoOwned
 {
     type Item: Clone;
+    fn is_owned(&self) -> bool;
     fn slice(&self) -> &[Self::Item];
     fn map_into_owned(self, f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned;
     fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Self::Owned;
     fn from_slice(slice: &[Self::Item]) -> Self::Owned;
     fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> Self::Owned;
+    fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> Self::Owned;
+    fn make_into_iter(self) -> impl Iterator<Item = Self::Item>;
 }
 
 pub trait MutStorage: ConstStorage {
     fn slice_mut(&mut self) -> &mut [Self::Item];
+    fn assign_iter(&mut self, offset: usize, iter: impl IntoIterator<Item = Self::Item>);
 }
 
 pub trait OwnedStorage: MutStorage
@@ -53,7 +57,7 @@ where
 {
 }
 
-impl<T, const N: usize> IntoOwned for [T; N] {
+impl<T: Clone, const N: usize> IntoOwned for [T; N] {
     type Owned = [T; N];
     fn into_owned(self) -> Self::Owned {
         self
@@ -65,6 +69,9 @@ where
     T: Clone,
 {
     type Item = T;
+    fn is_owned(&self) -> bool {
+        true
+    }
     fn slice(&self) -> &[T] {
         self
     }
@@ -86,6 +93,12 @@ where
         let mut it = iter.into_iter();
         std::array::from_fn(|_| it.next().expect("not enough elements in iterator"))
     }
+    fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> Self::Owned {
+        std::array::from_fn(|i| if i == 0 { order_0.clone() } else { zeros() })
+    }
+    fn make_into_iter(self) -> impl Iterator<Item = Self::Item> {
+        IntoIterator::into_iter(self)
+    }
 }
 
 impl<T, const N: usize> MutStorage for [T; N]
@@ -94,6 +107,9 @@ where
 {
     fn slice_mut(&mut self) -> &mut [T] {
         self
+    }
+    fn assign_iter(&mut self, offset: usize, iter: impl IntoIterator<Item = Self::Item>) {
+        (&mut self[..]).assign_iter(offset, iter)
     }
 }
 
@@ -112,6 +128,9 @@ where
     T: Clone,
 {
     type Item = T;
+    fn is_owned(&self) -> bool {
+        false
+    }
     fn slice(&self) -> &[T] {
         &self[..]
     }
@@ -131,6 +150,12 @@ where
     }
     fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> Self::Owned {
         <[T; N] as ConstStorage>::from_iter(iter)
+    }
+    fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> Self::Owned {
+        <[T; N] as ConstStorage>::from_order_0(order_0, zeros)
+    }
+    fn make_into_iter(self) -> impl Iterator<Item = Self::Item> {
+        IntoIterator::into_iter(self).cloned()
     }
 }
 
@@ -149,6 +174,9 @@ where
     T: Clone,
 {
     type Item = T;
+    fn is_owned(&self) -> bool {
+        false
+    }
     fn slice(&self) -> &[T] {
         &self[..]
     }
@@ -169,6 +197,12 @@ where
     fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> Self::Owned {
         <[T; N] as ConstStorage>::from_iter(iter)
     }
+    fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> Self::Owned {
+        <[T; N] as ConstStorage>::from_order_0(order_0, zeros)
+    }
+    fn make_into_iter(self) -> impl Iterator<Item = Self::Item> {
+        IntoIterator::into_iter(self).map(|x| x.clone())
+    }
 }
 
 impl<T, const N: usize> MutStorage for &mut [T; N]
@@ -177,6 +211,9 @@ where
 {
     fn slice_mut(&mut self) -> &mut [T] {
         &mut self[..]
+    }
+    fn assign_iter(&mut self, offset: usize, iter: impl IntoIterator<Item = Self::Item>) {
+        (&mut self[..]).assign_iter(offset, iter)
     }
 }
 
@@ -195,7 +232,9 @@ where
     T: Clone,
 {
     type Item = T;
-    
+    fn is_owned(&self) -> bool {
+        false
+    }
     fn slice(&self) -> &[T] {
         self
     }
@@ -210,6 +249,12 @@ where
     }
     fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> Self::Owned {
         iter.into_iter().collect()
+    }
+    fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> Self::Owned {
+        vec![order_0]
+    }
+    fn make_into_iter(self) -> impl Iterator<Item = Self::Item> {
+        IntoIterator::into_iter(self).cloned()
     }
 }
 
@@ -228,6 +273,9 @@ where
     T: Clone,
 {
     type Item = T;
+    fn is_owned(&self) -> bool {
+        false
+    }
     fn slice(&self) -> &[T] {
         &self[..]
     }
@@ -243,6 +291,12 @@ where
     fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> Self::Owned {
         iter.into_iter().collect()
     }
+    fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> Self::Owned {
+        <&[T] as ConstStorage>::from_order_0(order_0, zeros)
+    }
+    fn make_into_iter(self) -> impl Iterator<Item = Self::Item> {
+        IntoIterator::into_iter(self).map(|x| x.clone())
+    }
 }
 
 impl<T> MutStorage for &mut [T]
@@ -251,6 +305,13 @@ where
 {
     fn slice_mut(&mut self) -> &mut [T] {
         &mut self[..]
+    }
+    fn assign_iter(&mut self, offset: usize, iter: impl IntoIterator<Item = Self::Item>) {
+        let mut it = iter.into_iter();
+        for i in offset..self.len() {
+            self[i] = it.next().expect("not enough elements in iterator");
+        }
+        assert!(it.next().is_none(), "too many elements in iterator");
     }
 }
 
@@ -269,11 +330,14 @@ where
     T: Clone,
 {
     type Item = T;
+    fn is_owned(&self) -> bool {
+        true
+    }
     fn slice(&self) -> &[T] {
         self
     }
     fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Self::Owned {
-        self.into_iter().enumerate().map(|(i, x)| f(x, i)).collect()
+        IntoIterator::into_iter(self).enumerate().map(|(i, x)| f(x, i)).collect()
     }
     fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Self::Owned {
         (0..len).map(f).collect()
@@ -284,6 +348,12 @@ where
     fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> Self::Owned {
         iter.into_iter().collect()
     }
+    fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> Self::Owned {
+        <&[T] as ConstStorage>::from_order_0(order_0, zeros)
+    }
+    fn make_into_iter(self) -> impl Iterator<Item = Self::Item> {
+        IntoIterator::into_iter(self)
+    }
 }
 
 impl<T> MutStorage for Vec<T>
@@ -292,6 +362,11 @@ where
 {
     fn slice_mut(&mut self) -> &mut [T] {
         &mut self[..]
+    }
+    fn assign_iter(&mut self, offset: usize, iter: impl IntoIterator<Item = Self::Item>) {
+        assert!(offset <= self.len());
+        self.shrink_to(offset);
+        self.extend(iter);
     }
 }
 
@@ -310,11 +385,18 @@ where
     T: Clone,
 {
     type Item = T;
+    fn is_owned(&self) -> bool {
+        if let Cow::Borrowed(_) = self {
+            false
+        } else {
+            true
+        }
+    }
     fn slice(&self) -> &[Self::Item] {
         self
     }
     fn map_into_owned(self, mut f: impl FnMut(Self::Item, usize) -> Self::Item) -> Vec<T> {
-        self.into_owned().into_iter().enumerate().map(|(i, x)| f(x, i)).collect()
+        IntoIterator::into_iter(self.into_owned()).enumerate().map(|(i, x)| f(x, i)).collect()
     }
     fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Vec<T> {
         (0..len).map(f).collect()
@@ -324,5 +406,11 @@ where
     }
     fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> Vec<T> {
         iter.into_iter().collect()
+    }
+    fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> Vec<T> {
+        <&[T] as ConstStorage>::from_order_0(order_0, zeros)
+    }
+    fn make_into_iter(self) -> impl Iterator<Item = Self::Item> {
+        IntoIterator::into_iter(self.into_owned()).into_iter()
     }
 }

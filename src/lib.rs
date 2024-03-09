@@ -10,7 +10,7 @@ use std::fmt::Debug;
 use std::ops::{Index, IndexMut, MulAssign, DivAssign, AddAssign, SubAssign};
 
 use num_traits::real::Real;
-use num_traits::NumCast;
+use num_traits::{NumCast, Zero};
 
 mod alias;
 mod storage; pub use storage::*;
@@ -40,12 +40,72 @@ where
     Data: ConstStorage,
 {
     pub fn from_data(order: Order, n: N, data: Data) -> Self {
-        assert!(data.slice().len() >= number_of_elements(n.value(), order.value()));
+        assert!(data.slice().len() >= maybenumber_of_elements(n.value(), order.value()));
         Self {
             order,
             n,
             data,
         }
+    }
+
+    pub fn new_constant(order: Order, n: N, value: Data::Item) -> Self
+    where
+        Data::Item: Zero,
+        Data: Owned,
+    {
+        Self::from_data(
+            order,
+            n,
+            Data::from_order_0(value, || Zero::zero()),
+        )
+    }
+
+    pub fn into_defined_order(mut self, order: Order) -> Self
+    where
+        Data: MutStorage,
+        Data::Item: Zero,
+    {
+        let Some(new_order) = order.value() else {
+            panic!("Cannot redefine the order of a differential to an undefined order");
+        };
+
+        let current_order = self.order().value();
+        if let Some(current_order) = current_order {
+            assert_eq!(current_order, new_order, "Cannot redefine the order of a differential to a different order");
+        } else {
+            self.order = order;
+            if self.is_shape_defined() {
+                let n = self.n().value().unwrap();
+                let order = order.value().unwrap();
+                let count = number_of_elements(n, order);
+                self.data.assign_iter(1, std::iter::repeat_with(Zero::zero).take(count - 1));
+            }
+        }
+        self
+    }
+
+    pub fn into_defined_n(mut self, n: N) -> Self
+    where
+        Data: MutStorage,
+        Data::Item: Zero,
+    {
+        let Some(new_n) = n.value() else {
+            panic!("Cannot redefine the n of a differential to an undefined n");
+        };
+
+        let current_n = self.n().value();
+        if let Some(current_n) = current_n {
+            assert_eq!(current_n, new_n, "Cannot redefine the n of a differential to a different n");
+        } else {
+            self.n = n;
+            if self.is_shape_defined() {
+                let n = n.value().unwrap();
+                let order = self.order().value().unwrap();
+                let count = number_of_elements(n, order);
+                self.data.assign_iter(1, std::iter::repeat_with(Zero::zero).take(count - 1));
+            }
+        }
+        self
     }
 
     pub fn order(&self) -> Order {
@@ -54,6 +114,10 @@ where
 
     pub fn n(&self) -> N {
         self.n
+    }
+
+    pub fn is_shape_defined(&self) -> bool {
+        self.n.value().is_some() && self.order.value().is_some()
     }
 
     pub fn value(&self) -> &Data::Item {
@@ -81,17 +145,37 @@ where
     }
 
     pub fn drop_one_order(&self) -> Differential<Dynamic, N, Cow<[Data::Item]>> { // TODO Derivatives<Dynamic, N, &[Data::Item]>
-        assert!(self.order().value() > 0);
-        if self.n().value() == 1 {
+        let n = self.n();
+        let order = self.order();
+        let (n, order) = match (n.value(), order.value()) {
+            (Some(n), Some(order)) => (n, order),
+            (_, Some(order)) => return Differential::from_data(
+                Dynamic(Some(order - 1)),
+                n,
+                self.data.slice()[..1].into(), // TODO is this correct? maybe this?:
+                //<&[Data::Item] as ConstStorage>::from_order_0(
+                //    self.data.slice()[0].clone(),
+                //    || unreachable!(),
+                //).into(),
+            ),
+            _ => return Differential::from_data(
+                Dynamic(None),
+                n,
+                self.data.slice()[..1].into(),
+            ),
+        };
+
+        assert!(order > 0);
+        if n == 1 {
             Differential::from_data(
-                Dynamic(self.order().value() - 1),
+                Dynamic(Some(order - 1)),
                 self.n,
-                self.data.slice()[0..self.order().value()].into()
+                self.data.slice()[0..order].into() // TODO correct? maybe -1?
             )
         } else {
-            if self.order().value() == 1 {
+            if order == 1 {
                 Differential::from_data(
-                    Dynamic(0),
+                    Dynamic(Some(0)),
                     self.n(),
                     self.data.slice()[0..1].into()
                 )
@@ -102,7 +186,7 @@ where
                 // this might be solved by using drop_one_order that accepts a visitor
                 // instead of returning a new Diff
                 let data = std::iter::once(self.data.slice()[0].clone())
-                    .chain((0..self.n().value())
+                    .chain((0..n)
                         .rev()
                         .map(|i| {
                             let d = derivatives.get(i);
@@ -114,7 +198,7 @@ where
                     .collect::<Vec<_>>();
 
                 Differential::from_data(
-                    Dynamic(self.order().value() - 1),
+                    Dynamic(Some(order - 1)),
                     self.n(),
                     data.into()
                 )
@@ -126,11 +210,18 @@ where
         &self,
         offset: usize,
     ) -> Differential<Dynamic, Dynamic, &[Data::Item]> {
-        Differential::from_data(
-            Dynamic(self.order().value()),
-            Dynamic(self.n().value() - offset),
-            &self.data.slice(), // TODO <- correct range
-        )
+        match (self.n().value(), self.order().value()) {
+            (Some(n), order) => Differential::from_data(
+                Dynamic(order),
+                Dynamic(Some(n - offset)),
+                &self.data.slice(), // TODO <- correct range
+            ),
+            (None, order) => Differential::from_data(
+                Dynamic(order),
+                Dynamic(None),
+                &self.data.slice(), // TODO <- correct range
+            ),
+        }
     }
 
     pub fn as_dynamic(&self) -> Differential<Dynamic, Dynamic, &[Data::Item]> {
@@ -145,7 +236,7 @@ where
     where
         Data::Item: Real + MulAssign,
     {
-        assert!(self.n().value() == 1);
+        assert!(self.n().value() == Some(1)); // TODO correct???
         let mut divider = <Data::Item as NumCast>::from(1).unwrap();
         self.data.map_into_owned(|c, i| {
             divider *= <Data::Item as NumCast>::from(i.max(1)).unwrap();
@@ -159,7 +250,7 @@ where
         Data::Owned: ConstStorage,
         Data::Item: Real + MulAssign,
     {
-        assert!(n.value() == 1);
+        assert!(n.value() == Some(1)); // TODO correct???
         let mut multiplier = <Data::Item as NumCast>::from(1).unwrap();
         let data = data.map_into_owned(|c, i| {
             multiplier *= <Data::Item as NumCast>::from(i.max(1)).unwrap();
@@ -262,8 +353,18 @@ where
     type Output = Data::Item;
 
     fn index(&self, index: Idx) -> &Self::Output {
-        let offset = offset_of(index, self.n().value(), self.order().value());
-        &self.data.slice()[offset]
+        let n = self.n().value();
+        let order = self.order().value();
+        if let (Some(n), Some(order)) = (n, order) {
+            let offset = offset_of(index, n, order);
+            &self.data.slice()[offset]
+        } else {
+            if index.into_orders().all(|o| o == 0) {
+                &self.data.slice()[0]
+            } else {
+                panic!("Cannot get derivatives from a differential with undefined shape");
+            }
+        }
     }
 }
 
@@ -272,8 +373,18 @@ where
     Data: MutStorage,
 {
     fn index_mut(&mut self, index: Idx) -> &mut Self::Output {
-        let offset = offset_of(index, self.n().value(), self.order().value());
-        &mut self.data.slice_mut()[offset]
+        let n = self.n().value();
+        let order = self.order().value();
+        if let (Some(n), Some(order)) = (n, order) {
+            let offset = offset_of(index, n, order);
+            &mut self.data.slice_mut()[offset]
+        } else {
+            if index.into_orders().all(|o| o == 0) {
+                &mut self.data.slice_mut()[0]
+            } else {
+                panic!("Cannot get derivatives from a differential with undefined shape");
+            }
+        }
     }
 }
 

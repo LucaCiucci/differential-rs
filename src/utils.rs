@@ -1,6 +1,13 @@
 use crate::DiffIndex;
 
-
+#[inline(always)]
+pub const fn maybenumber_of_elements(n: Option<usize>, order: Option<usize>) -> usize {
+    if let (Some(n), Some(order)) = (n, order) {
+        number_of_elements(n, order)
+    } else {
+        1
+    }
+}
 
 #[inline(always)]
 pub const fn number_of_elements(n: usize, order: usize) -> usize {

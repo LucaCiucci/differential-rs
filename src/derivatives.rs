@@ -23,11 +23,11 @@ where
         }
     }
 
-    pub fn order(&self) -> usize {
+    pub fn order(&self) -> Option<usize> { // TODO maybe return Order instead of Option<usize>?
         self.order.value()
     }
 
-    pub fn n(&self) -> usize {
+    pub fn n(&self) -> Option<usize> { // TODO maybe return N instead of Option<usize>?
         self.n.value()
     }
 
@@ -41,11 +41,14 @@ where
 
     pub fn get<'s>(&'s self, i: usize) -> Differential<Dynamic, Dynamic, &'s [Data::Item]>
     {
-        let offset = offset_under(self.n(), i, self.order());
+        // TODO maybe this should be implemented also for undefined shape?d
+        let n = self.n().expect("n is not known");
+        let order = self.order().expect("order is not known");
+        let offset = offset_under(n, i, order);
         let data: &[Data::Item] = &self.data.slice()[offset..];
         Differential::<Dynamic, Dynamic, &'s [Data::Item]>::from_data(
-            Dynamic(self.order() - 1),
-            Dynamic(self.n() - i),
+            Dynamic(Some(order - 1)),
+            Dynamic(Some(n - i)),
             data,
         )
     }
@@ -125,8 +128,10 @@ where
     type Output = Derivatives<Order, N, Vec<Data::Item>>;
 
     fn mul(self, rhs: &Differential<Order, N, Data2>) -> Self::Output {
+        // TODO maybe this should be implemented also for undefined shape?
+        let n = self.n().expect("n is not known");
         let rhs = rhs.as_dynamic();
-        let data = (0..self.n())
+        let data = (0..n)
             .rev()
             .map(|i| {
                 let r = self.get(i) * &rhs.drop_first_derivatives(i);
