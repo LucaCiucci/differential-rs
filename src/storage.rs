@@ -250,7 +250,7 @@ where
     fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> Self::Owned {
         iter.into_iter().collect()
     }
-    fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> Self::Owned {
+    fn from_order_0(order_0: Self::Item, _zeros: impl Fn() -> Self::Item) -> Self::Owned {
         vec![order_0]
     }
     fn make_into_iter(self) -> impl Iterator<Item = Self::Item> {
