@@ -12,7 +12,7 @@ where
     type Output = Differential<Order, N, Data::Owned>;
 
     fn div(self, other: Differential<Order, N, Data2>) -> Self::Output {
-        if !self.is_shape_defined() && !other.is_shape_defined() {
+        let rhs = if !self.is_shape_defined() && !other.is_shape_defined() {
             let mut result = self.into_owned();
             result.data.slice_mut()[0] /= other.data_slice()[0];
             return result;
@@ -23,12 +23,14 @@ where
             if let Some(order) = self.order().value() {
                 assert_eq!(order, other.order().value().unwrap());
             }
-            let mut result = other.into_owned();
-            let data = result.data.slice_mut();
-            for c in data {
-                *c /= self.data_slice()[0];
+            let mut rhs = self.into_owned();
+            if rhs.n().value().is_none() {
+                rhs.define_n(other.n());
             }
-            return result;
+            if rhs.order().value().is_none() {
+                rhs.define_order(other.order());
+            }
+            rhs
         } else if !other.is_shape_defined() {
             if let Some(n) = self.n().value() {
                 assert_eq!(n, self.n().value().unwrap());
@@ -42,19 +44,27 @@ where
                 *c /= other.data_slice()[0];
             }
             return result;
-        }
+        } else {
+            self.into_owned()
+        };
 
-        let n = self.n().value().unwrap();
+        let n = rhs.n().value().unwrap();
         let other_n = other.n().value().unwrap();
         assert_eq!(n, other_n);
 
-        let order = self.order().value().unwrap();
+        let order = rhs.order().value().unwrap();
         let other_order = other.order().value().unwrap();
 
         if order == other_order && n == 1 {
-            let self_n = self.n();
-            let self_order = self.order();
-            let mut data = self.polynomial_coeffs().clone();
+            let self_n = rhs.n();
+            let self_order = rhs.order();
+
+            if order == 0 {
+                let value = rhs.value().clone() / other.value();
+                return Differential::new_constant(value);
+            }
+
+            let mut data = rhs.polynomial_coeffs().clone();
             let rhs = other.clone().polynomial_coeffs();
             let rhs = rhs.slice();
             // TODO the following algorithm works even is the orders are different, remove the bound on the order
@@ -100,15 +110,15 @@ where
             }
             Self::Output::from_polynomial_coeffs(data, self_order, self_n)
         } else {
-            let value = self.value().clone() / other.value();
+            let value = rhs.value().clone() / other.value();
             if order == 0 {
-                Self::Output::from_data(self.order, self.n, Data::from_slice(&[value]))
+                Self::Output::from_data(rhs.order, rhs.n, Data::from_slice(&[value]))
             } else {
                 // GENERAL CASE
-                let derivatives = self.derivatives() * &self.drop_one_order() - other.derivatives() * &other.drop_one_order();
+                let derivatives = rhs.derivatives() * &rhs.drop_one_order() - other.derivatives() * &other.drop_one_order();
                 let data = std::iter::once(value)
                     .chain(derivatives.unwrap_data().make_into_iter()); // TODO <- optimize
-                Self::Output::from_data(self.order, self.n, Data::from_iter(data)) // TODO <- optimize
+                Self::Output::from_data(rhs.order, rhs.n, Data::from_iter(data)) // TODO <- optimize
             }
         }
     }

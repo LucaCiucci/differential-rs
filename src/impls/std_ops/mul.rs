@@ -115,7 +115,7 @@ where
             if order == 0 {
                 Self::Output::from_data(self.order, self.n, Data::from_slice(&[value]))
             } else {
-                let derivatives = self.derivatives() * &self.drop_one_order() + other.derivatives() * &other.drop_one_order();
+                let derivatives = self.derivatives() * &other.drop_one_order() + other.derivatives() * &self.drop_one_order();
                 let data = std::iter::once(value)
                     .chain(derivatives.unwrap_data().make_into_iter());
                 Self::Output::from_data(self.order, self.n, Data::from_iter(data)) // TODO <- optimize

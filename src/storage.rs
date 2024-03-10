@@ -1,5 +1,7 @@
 use std::borrow::{Cow, ToOwned};
 
+use num_traits::Zero;
+
 /// A trait for types that can be converted to owned types.
 ///
 /// This trait is similar to [`ToOwned`], but adds the [`into_owned`] method.
@@ -238,7 +240,7 @@ impl<T: Clone, const N: usize> IntoOwned for [T; N] {
 
 impl<T, const N: usize> ConstStorage for [T; N]
 where
-    T: Clone,
+    T: Clone + Zero,
 {
     type Item = T;
     fn is_owned(&self) -> bool {
@@ -255,15 +257,15 @@ where
         result
     }
     fn owned_from_fn(len: usize, f: impl Fn(usize) -> Self::Item) -> Self::Owned {
-        assert!(len == N);
+        assert!(len <= N);
         std::array::from_fn(f)
     }
     fn from_slice(slice: &[Self::Item]) -> Self::Owned {
-        std::array::from_fn(|i| slice[i].clone())
+        std::array::from_fn(|i| if i < slice.len() { slice[i].clone() } else { Zero::zero() })
     }
     fn from_iter(iter: impl IntoIterator<Item = Self::Item>) -> Self::Owned {
         let mut it = iter.into_iter();
-        std::array::from_fn(|_| it.next().expect("not enough elements in iterator"))
+        std::array::from_fn(|_| it.next().unwrap_or_else(Zero::zero))
     }
     fn from_order_0(order_0: Self::Item, zeros: impl Fn() -> Self::Item) -> Self::Owned {
         std::array::from_fn(|i| if i == 0 { order_0.clone() } else { zeros() })
@@ -275,7 +277,7 @@ where
 
 impl<T, const N: usize> MutStorage for [T; N]
 where
-    T: Clone,
+    T: Clone + Zero,
 {
     fn slice_mut(&mut self) -> &mut [T] {
         self
@@ -297,7 +299,7 @@ where
 
 impl<T, const N: usize> ConstStorage for &[T; N]
 where
-    T: Clone,
+    T: Clone + Zero,
 {
     type Item = T;
     fn is_owned(&self) -> bool {
@@ -343,7 +345,7 @@ where
 
 impl<T, const N: usize> ConstStorage for &mut [T; N]
 where
-    T: Clone,
+    T: Clone + Zero,
 {
     type Item = T;
     fn is_owned(&self) -> bool {
@@ -379,7 +381,7 @@ where
 
 impl<T, const N: usize> MutStorage for &mut [T; N]
 where
-    T: Clone,
+    T: Clone + Zero,
 {
     fn slice_mut(&mut self) -> &mut [T] {
         &mut self[..]

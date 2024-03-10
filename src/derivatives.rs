@@ -9,7 +9,7 @@ where
 {
     order: Order,
     n: N,
-    data: Data,
+    pub data: Data,
 }
 
 impl<Order: Dim, N: Dim, Data> Derivatives<Order, N, Data>

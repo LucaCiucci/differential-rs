@@ -31,7 +31,7 @@ where
 {
     order: Order,
     n: N,
-    data: Data,
+    pub data: Data,
 }
 
 impl<Order: Dim, N: Dim, Data> Differential<Order, N, Data>
@@ -54,11 +54,11 @@ where
     {
         let order = Order::undef();
         let n = N::undef();
-        Self::from_data(
+        Self {
             order,
             n,
-            Data::from_order_0(value, || Zero::zero()),
-        )
+            data: Data::from_order_0(value, || Zero::zero()),
+        }
     }
 
     pub fn define_order(&mut self, order: Order)
@@ -79,7 +79,8 @@ where
                 let n = self.n().value().unwrap();
                 let order = order.value().unwrap();
                 let count = number_of_elements(n, order);
-                self.data.assign_iter(1, std::iter::repeat_with(Zero::zero).take(count - 1));
+                let data_len = self.data.slice().len().max(count);
+                self.data.assign_iter(1, std::iter::repeat_with(Zero::zero).take(data_len - 1));
             }
         }
     }
@@ -111,7 +112,8 @@ where
                 let n = n.value().unwrap();
                 let order = self.order().value().unwrap();
                 let count = number_of_elements(n, order);
-                self.data.assign_iter(1, std::iter::repeat_with(Zero::zero).take(count - 1));
+                let data_len = self.data.slice().len().max(count);
+                self.data.assign_iter(1, std::iter::repeat_with(Zero::zero).take(data_len - 1));
             }
         }
     }
