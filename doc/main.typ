@@ -7,6 +7,8 @@
 
 #let ref-enzyme = [@NEURIPS2020_9332c513 #ref(label("10.1145/3458817.3476165")) #ref(label("10.5555/3571885.3571964"))]
 
+#let diff-package = link("https://github.com/LucaCiucci/differential-rs")[`differential`] + [@differential-repo]
+
 #show: common_styles
 #show: project.with(
   title: "Efficient Forward Mode Automatic Differentiation",
@@ -14,7 +16,7 @@
     (name: "Luca Ciucci", email: "luca.ciucci99@gmail.com"),
   ),
   abstract: [
-    We present a novel /*TODO maybe advanced/generic instead of advances??*/ implementation of the forward mode automatic differentiation algorithm, written in Rust, that allows for efficient arbitrary-order and arbitrary number of variables derivatives computation. We analyze different approaches to the problem and we elaborate an implementation that can be easily extended and optimized.
+    We present a novel /*TODO maybe advanced/generic instead of advances??*/ implementation of the forward mode automatic differentiation algorithm written in Rust, #diff-package, that allows for efficient arbitrary-order and arbitrary number of variables derivatives computation. We analyze different approaches to the problem and we elaborate an implementation that can be easily extended and optimized.
   ],
 )
 
@@ -361,5 +363,28 @@ In practice, we observe that the derivatives converge in a few steps (usually 5)
   an appropriate test and analysis of the convergence of the derivatives / error. Decide which one is the most efficient and/or accurate.
 ]
 
+= Allocations optimization <allocations-optimization>
+
+#todo[
+  ...
+]
+
+= Benchmarks <benchmarks>
+
+#todo[
+  ...
+]
+
+= Future work <future-work>
+
+#todo[
+  ...
+]
+
+= Conclusion <conclusion>
+
+#todo[
+  ...
+]
 
 #bibliography("bibliography.yaml")

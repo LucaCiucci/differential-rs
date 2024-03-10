@@ -1,3 +1,11 @@
+differential-repo:
+  type: Web
+  title: differential-rs
+  author: [Luca Ciucci]
+  url:
+    value: https://github.com/LucaCiucci/differential-rs
+    date: 2024-03-10
+
 autodiff-in-machine-learning:
   type: Article
   title: "Automatic differentiation in machine learning: a survey"
