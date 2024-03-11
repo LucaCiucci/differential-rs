@@ -9,6 +9,39 @@
 
 #let diff-package = link("https://github.com/LucaCiucci/differential-rs")[`differential`] + [@differential-repo]
 
+//#let branch = {
+//  let file = read("../.git/HEAD");
+//  let branch = file.split("/").last();
+//  branch.trim()
+//}
+#let orig_hash = {
+  let file = read("../.git/ORIG_HEAD");
+  file.trim()
+}
+
+#let code_ref(file, line: -1) = {
+    let url = "https://github.com/LucaCiucci/differential-rs/blob/" + orig_hash + "/" + file;
+    let line = if type(line) == "string" {
+        let file = read("../" + file);
+        let line = file.split("\n").enumerate().find((nl) => nl.at(1).contains(line));
+        if line == none {
+            panic("line not found")
+        }
+        line.at(0) + 1
+    } else {
+        line
+    }
+    let content = if line < 0 {
+        file
+    } else {
+        url = url + "#L" + str(line);
+        file + ":" + str(line)
+    };
+    link(url, raw(content, block: false))
+    footnote(link(url, url))
+}
+// https://github.com/LucaCiucci/differential-rs/blob/d0e5265b9a68b21b916f803d1ced764996c279a8/Cargo.toml#L13
+
 #show: common_styles
 #show: project.with(
   title: "Efficient Forward Mode Automatic Differentiation",
@@ -146,7 +179,7 @@ $
 differential(cal(F)) = (cal(F), jac(cal(F)))
 $ <ad-differentials-composition>
 where $cal(F)$ is a field and $jac(cal(F))$ is a jacobian object over the space of $cal(F)$. This notation is chosen to resemble the Rust implementation. \
-Then, a first order differential like described in @ad-first-order-ad would just be $D(RR)$. We could then recur and define a second order differential as $D(D(RR))$ and so on.
+Then, a first order differential like described in @ad-first-order-ad would just be $differential(RR)$. We could then recur and define a second order differential as $differential(differential(RR))$ and so on.
 
 As a practical example, let's analyze what $D(D(RR))$ is:
 $
@@ -179,30 +212,30 @@ This poses some problems since the number of derivatives grows exponentially wit
 If we try to write down the 3rd order differential for 3 variables, we would get:
 #let unn(it, ok) = if ok > 0 { text(gray, it) } else { it }
 
-#text(7pt)[$
+#text(10pt)[$
 (
-  f <-> (0, 0, 0),
-  vec(f_x <-> (1, 0, 0), f_y <-> (0, 1, 0), f_x <-> (0, 0, 1)),
+  f,
+  vec(f_x, f_y, f_x),
   mat(
-    vec(unn(f_(x x) <-> (2, 0, 0), #0), unn(f_(x y) <-> (1, 1, 0), #0), unn(f_(x z) <-> (1, 0, 1), #0)),
-    vec(unn(f_(y x) <-> (1, 1, 0), #1), unn(f_(y y) <-> (0, 2, 0), #0), unn(f_(y z) <-> (0, 1, 1), #0)),
-    vec(unn(f_(z x) <-> (1, 0, 1), #1), unn(f_(z y) <-> (0, 1, 1), #1), unn(f_(z z) <-> (0, 0, 2), #0)),
+    vec(unn(f_(x x), #0), unn(f_(x y), #0), unn(f_(x z), #0)),
+    vec(unn(f_(y x), #1), unn(f_(y y), #0), unn(f_(y z), #0)),
+    vec(unn(f_(z x), #1), unn(f_(z y), #1), unn(f_(z z), #0)),
   ),
   mat(
     cases(
-      unn(vec(unn(f_(x x x) <-> (3, 0, 0), #0), unn(f_(x x y) <-> (2, 1, 0), #0), unn(f_(x x z) <-> (2, 0, 1), #0)), #0),
-      unn(vec(unn(f_(x y x) <-> (2, 1, 0), #1), unn(f_(x y y) <-> (1, 2, 0), #0), unn(f_(x y z) <-> (1, 1, 1), #0)), #0),
-      unn(vec(unn(f_(x z x) <-> (2, 0, 1), #1), unn(f_(x z y) <-> (1, 1, 1), #1), unn(f_(x z z) <-> (1, 0, 2), #0)), #0),
+      unn(vec(unn(f_(x x x), #0), unn(f_(x x y), #0), unn(f_(x x z), #0)), #0),
+      unn(vec(unn(f_(x y x), #1), unn(f_(x y y), #0), unn(f_(x y z), #0)), #0),
+      unn(vec(unn(f_(x z x), #1), unn(f_(x z y), #1), unn(f_(x z z), #0)), #0),
     ),
     cases(
-      unn(vec(unn(f_(y x x) <-> (2, 1, 0), #0), unn(f_(y x y) <-> (1, 2, 0), #0), unn(f_(y x z) <-> (1, 1, 1), #0)), #1),
-      unn(vec(unn(f_(y y x) <-> (1, 2, 0), #1), unn(f_(y y y) <-> (0, 3, 0), #0), unn(f_(y y z) <-> (0, 2, 1), #0)), #0),
-      unn(vec(unn(f_(y z x) <-> (1, 1, 1), #1), unn(f_(y z y) <-> (0, 2, 1), #1), unn(f_(y z z) <-> (0, 1, 2), #0)), #0),
+      unn(vec(unn(f_(y x x), #0), unn(f_(y x y), #0), unn(f_(y x z), #0)), #1),
+      unn(vec(unn(f_(y y x), #1), unn(f_(y y y), #0), unn(f_(y y z), #0)), #0),
+      unn(vec(unn(f_(y z x), #1), unn(f_(y z y), #1), unn(f_(y z z), #0)), #0),
     ),
     cases(
-      unn(vec(unn(f_(z x x) <-> (2, 0, 1), #0), unn(f_(z x y) <-> (1, 1, 1), #0), unn(f_(z x z) <-> (1, 0, 2), #0)), #1),
-      unn(vec(unn(f_(z y x) <-> (1, 1, 1), #1), unn(f_(z y y) <-> (0, 2, 1), #0), unn(f_(z y z) <-> (0, 1, 2), #0)), #1),
-      unn(vec(unn(f_(z z x) <-> (1, 0, 2), #1), unn(f_(z z y) <-> (0, 1, 2), #1), unn(f_(z z z) <-> (0, 0, 3), #0)), #0),
+      unn(vec(unn(f_(z x x), #0), unn(f_(z x y), #0), unn(f_(z x z), #0)), #1),
+      unn(vec(unn(f_(z y x), #1), unn(f_(z y y), #0), unn(f_(z y z), #0)), #1),
+      unn(vec(unn(f_(z z x), #1), unn(f_(z z y), #1), unn(f_(z z z), #0)), #0),
     ),
   )
 )
@@ -232,7 +265,7 @@ Rust makes implementing this representation with tuples difficult both because o
 We could then use a different approach, store the elements in plain array and use use custom mapping functions to map derivative orders to indexes and vice versa. This is the approach we chose to use in our implementation.\
 This also has the advantage of being generic over the use of compile-time determined shape and the use of dynamic shape, which is a feature we are also interested in.
 
-This approach is the core of our implementation where there are two main structs:
+This approach is the core of our implementation where there are two main structures:
 + the `Differential` struct that represents the differential of a function
 + the `Derivatives` struct that can be used to reference the "derivative" part of a `Differential`.
 
@@ -285,7 +318,7 @@ struct Differential<Order, N, Data> {
     data: Data,
 }
 ```
-and the sames pattern applies to the `Derivatives` struct.
+and the sames pattern applies to the `Derivatives` struct. Actual implementation can be found in #code_ref("src/lib.rs", line: "pub struct Differential<Order: Dim, N: Dim, Data>")
 
 == Basic operations <basic-operations>
 
