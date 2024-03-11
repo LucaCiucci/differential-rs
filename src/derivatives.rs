@@ -1,3 +1,4 @@
+use std::ops::{Add, Mul};
 
 use super::*;
 
@@ -8,7 +9,7 @@ where
 {
     order: Order,
     n: N,
-    data: Data,
+    pub data: Data,
 }
 
 impl<Order: Dim, N: Dim, Data> Derivatives<Order, N, Data>
@@ -23,11 +24,11 @@ where
         }
     }
 
-    pub fn order(&self) -> usize {
+    pub fn order(&self) -> Option<usize> { // TODO maybe return Order instead of Option<usize>?
         self.order.value()
     }
 
-    pub fn n(&self) -> usize {
+    pub fn n(&self) -> Option<usize> { // TODO maybe return N instead of Option<usize>?
         self.n.value()
     }
 
@@ -39,14 +40,17 @@ where
         self.data
     }
 
-    pub fn get<'s>(&'s self, i: usize) -> Differential<Dynamic, Dynamic, &'s [Data::Item]>
+    pub fn get<'s>(&'s self, i: usize) -> Differential<Dynamic, Dynamic, StorageSlice<'s, Data>>
     {
-        let offset = offset_under(self.n(), i, self.order());
+        // TODO maybe this should be implemented also for undefined shape?d
+        let n = self.n().expect("n is not known");
+        let order = self.order().expect("order is not known");
+        let offset = offset_under(n, i, order);
         let data: &[Data::Item] = &self.data.slice()[offset..];
-        Differential::<Dynamic, Dynamic, &'s [Data::Item]>::from_data(
-            Dynamic(self.order() - 1),
-            Dynamic(self.n() - i),
-            data,
+        Differential::from_data(
+            Dynamic(Some(order - 1)),
+            Dynamic(Some(n - i)),
+            StorageSlice::new(data),
         )
     }
 
@@ -115,51 +119,51 @@ where
     }
 }
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::Mul<&Differential<Order, N, Data2>> for Derivatives<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> Mul<&Differential<Order, N, Data2>> for Derivatives<Order, N, Data>
 where
-    Data: ConstStorage,
-    Data::Owned: ConstStorage,
-    Data2: ConstStorage<Item = Data::Item>,
-    for <'a, 'b> Differential<Dynamic, Dynamic, &'a [Data::Item]>: std::ops::Mul<&'b Differential<Dynamic, Dynamic, &'b [Data::Item]>, Output = Differential<Dynamic, Dynamic, Vec<Data::Item>>>,
+    Data: ConstStorage + Clone,
+    Data::Owned: MutStorage<Item = Data::Item> + Clone,
+    Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
+    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign,
 {
-    type Output = Derivatives<Order, N, Vec<Data::Item>>;
+    type Output = Derivatives<Order, N, Data::Owned>;
 
     fn mul(self, rhs: &Differential<Order, N, Data2>) -> Self::Output {
+        // TODO maybe this should be implemented also for undefined shape?
+        let n = self.n().expect("n is not known");
         let rhs = rhs.as_dynamic();
-        let data = (0..self.n())
+        let data = (0..n)
             .rev()
             .map(|i| {
                 let r = self.get(i) * &rhs.drop_first_derivatives(i);
-                r.data.into_iter()
+                r.data.make_into_iter()
             })
-            .flatten()
-            .collect::<Vec<_>>();
+            .flatten();
         Derivatives::new(
             self.order,
             self.n,
-            data
+            Data::from_iter(data),
         )
     }
 }
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::Add<Derivatives<Order, N, Data2>> for Derivatives<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> Add<Derivatives<Order, N, Data2>> for Derivatives<Order, N, Data>
 where
     Data: ConstStorage,
     Data::Owned: ConstStorage,
     Data2: ConstStorage<Item = Data::Item>,
-    Data::Item: std::ops::Add<Data2::Item, Output = Data::Item> + Clone,
+    Data::Item: Add<Data2::Item, Output = Data::Item> + Clone,
 {
-    type Output = Derivatives<Order, N, Vec<Data::Item>>;
+    type Output = Derivatives<Order, N, Data::Owned>;
 
     fn add(self, rhs: Derivatives<Order, N, Data2>) -> Self::Output {
         let data = self.data.slice().iter()
             .zip(rhs.data.slice().iter())
-            .map(|(a, b)| a.clone() + b.clone())
-            .collect::<Vec<_>>();
+            .map(|(a, b)| a.clone() + b.clone());
         Derivatives::new(
             self.order,
             self.n,
-            data
+            Data::from_iter(data),
         )
     }
 }
@@ -171,17 +175,16 @@ where
     Data2: ConstStorage<Item = Data::Item>,
     Data::Item: std::ops::Sub<Data2::Item, Output = Data::Item> + Clone,
 {
-    type Output = Derivatives<Order, N, Vec<Data::Item>>;
+    type Output = Derivatives<Order, N, Data::Owned>;
 
     fn sub(self, rhs: Derivatives<Order, N, Data2>) -> Self::Output {
         let data = self.data.slice().iter()
             .zip(rhs.data.slice().iter())
-            .map(|(a, b)| a.clone() - b.clone())
-            .collect::<Vec<_>>();
+            .map(|(a, b)| a.clone() - b.clone());
         Derivatives::new(
             self.order,
             self.n,
-            data
+            Data::from_iter(data),
         )
     }
 }

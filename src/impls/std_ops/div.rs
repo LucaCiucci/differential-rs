@@ -1,21 +1,70 @@
+use std::ops::{Div, Mul};
+
 use super::*;
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::Div<Differential<Order, N, Data2>> for Differential<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> Div<Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
-    Data: ConstStorage,
-    Data2: ConstStorage<Item = Data::Item> + Clone,
+    Data: ConstStorage + Clone,
     Data::Owned: MutStorage<Item = Data::Item> + Clone,
-    Data2::Owned: ConstStorage<Item = Data::Item>,
-    Data::Item: Zero + for <'a> std::ops::Div<&'a Data::Item, Output = Data::Item> + for <'a> std::ops::Mul<&'a Data::Item, Output = Data::Item> + std::ops::AddAssign + std::ops::SubAssign + Real + std::ops::MulAssign + std::ops::DivAssign,
+    Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
+    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + Div<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign + DivAssign + SubAssign,
 {
     type Output = Differential<Order, N, Data::Owned>;
 
     fn div(self, other: Differential<Order, N, Data2>) -> Self::Output {
-        assert_eq!(self.n().value(), other.n().value());
-        if self.order().value() == other.order().value() && self.n().value() == 1 {
-            let order = self.order;
-            let n = self.n;
-            let mut data = self.polynomial_coeffs().clone();
+        let rhs = if !self.is_shape_defined() && !other.is_shape_defined() {
+            let mut result = self.into_owned();
+            result.data.slice_mut()[0] /= other.data_slice()[0];
+            return result;
+        } else if !self.is_shape_defined() {
+            if let Some(n) = self.n().value() {
+                assert_eq!(n, other.n().value().unwrap());
+            }
+            if let Some(order) = self.order().value() {
+                assert_eq!(order, other.order().value().unwrap());
+            }
+            let mut rhs = self.into_owned();
+            if rhs.n().value().is_none() {
+                rhs.define_n(other.n());
+            }
+            if rhs.order().value().is_none() {
+                rhs.define_order(other.order());
+            }
+            rhs
+        } else if !other.is_shape_defined() {
+            if let Some(n) = self.n().value() {
+                assert_eq!(n, self.n().value().unwrap());
+            }
+            if let Some(order) = self.order().value() {
+                assert_eq!(order, self.order().value().unwrap());
+            }
+            let mut result = self.into_owned();
+            let data = result.data.slice_mut();
+            for c in data {
+                *c /= other.data_slice()[0];
+            }
+            return result;
+        } else {
+            self.into_owned()
+        };
+
+        let n = rhs.n().value().unwrap();
+        let other_n = other.n().value().unwrap();
+        assert_eq!(n, other_n);
+
+        let order = rhs.order().value().unwrap();
+        let other_order = other.order().value().unwrap();
+
+        if order == other_order && n == 1 {
+            let self_n = rhs.n();
+            let self_order = rhs.order();
+
+            if order == 0 {
+                let value = rhs.value().clone() / other.value();
+                return Differential::new_constant(value);
+            }
+
+            let mut data = rhs.polynomial_coeffs().clone();
             let rhs = other.clone().polynomial_coeffs();
             let rhs = rhs.slice();
             // TODO the following algorithm works even is the orders are different, remove the bound on the order
@@ -48,41 +97,39 @@ where
             */
             {
                 let data = data.slice_mut();
-                for i in 0..=order.value() {
+                for i in 0..=order {
                     // every cicle of this loop computes a coefficient
                     data[i] /= rhs[0];
                     let c = data[i];
 
                     // compute the rest (A', or A'', A''' ...)
-                    for j in 1..=(order.value() - i) {
+                    for j in 1..=(order - i) {
                         data[i + j] -= c * &rhs[j];
                     }
                 }
             }
-            Self::Output::from_polynomial_coeffs(data, order, n)
+            Self::Output::from_polynomial_coeffs(data, self_order, self_n)
         } else {
-            let value = self.value().clone() / other.value();
-            if self.order().value() == 0 {
-                Self::Output::from_data(self.order, self.n, Data::from_slice(&[value]))
+            let value = rhs.value().clone() / other.value();
+            if order == 0 {
+                Self::Output::from_data(rhs.order, rhs.n, Data::from_slice(&[value]))
             } else {
                 // GENERAL CASE
-                let derivatives = self.derivatives() * &self.drop_one_order() - other.derivatives() * &other.drop_one_order();
+                let derivatives = rhs.derivatives() * &rhs.drop_one_order() - other.derivatives() * &other.drop_one_order();
                 let data = std::iter::once(value)
-                    .chain(derivatives.unwrap_data().into_iter())
-                    .collect::<Vec<_>>(); // TODO <- optimize
-                Self::Output::from_data(self.order, self.n, Data::from_slice(&data[..])) // TODO <- optimize
+                    .chain(derivatives.unwrap_data().make_into_iter()); // TODO <- optimize
+                Self::Output::from_data(rhs.order, rhs.n, Data::from_iter(data)) // TODO <- optimize
             }
         }
     }
 }
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::Div<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> Div<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
-    Data: ConstStorage,
-    Data2: ConstStorage<Item = Data::Item> + Clone,
+    Data: ConstStorage + Clone,
     Data::Owned: MutStorage<Item = Data::Item> + Clone,
-    Data2::Owned: ConstStorage<Item = Data::Item>,
-    Data::Item: Zero + for <'a> std::ops::Div<&'a Data::Item, Output = Data::Item> + for <'a> std::ops::Mul<&'a Data::Item, Output = Data::Item> + std::ops::AddAssign + std::ops::SubAssign + Real + std::ops::MulAssign + std::ops::DivAssign,
+    Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
+    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + Div<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign + DivAssign + SubAssign,
 {
     type Output = Differential<Order, N, Data::Owned>;
 
@@ -91,11 +138,11 @@ where
     }
 }
 
-impl<Order: Dim, N: Dim, Data, Data2> std::ops::DivAssign<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> DivAssign<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
     Data: ConstStorage, // TODO use mut to avoid clone
     Data2: ConstStorage<Item = Data::Item> + Clone,
-    Self: for <'a> std::ops::Div<&'a Differential<Order, N, Data2>, Output = Self> + Clone, // TODO without Clone
+    Self: for <'a> Div<&'a Differential<Order, N, Data2>, Output = Self> + Clone, // TODO without Clone
 {
     fn div_assign(&mut self, other: &Differential<Order, N, Data2>) {
         *self = self.clone() / other;

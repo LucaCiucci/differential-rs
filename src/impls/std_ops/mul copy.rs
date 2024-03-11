@@ -1,58 +1,34 @@
-use std::ops::Mul;
-
 use super::*;
 
-impl<Order: Dim, N: Dim, Data, Data2> Mul<Differential<Order, N, Data2>> for Differential<Order, N, Data>
+impl<Order: Dim, N: Dim, Data> std::ops::Mul<Differential<Order, N, Data>> for Differential<Order, N, Data>
 where
     Data: ConstStorage + Clone,
-    Data::Owned: MutStorage<Item = Data::Item> + Clone,
-    Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
-    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign,
+    Data::Owned: MutStorage<Item = Data::Item>,
+    Data::Item: Zero + for <'a> std::ops::Mul<&'a Data::Item, Output = Data::Item> + std::ops::AddAssign + Real + std::ops::MulAssign,
 {
     type Output = Differential<Order, N, Data::Owned>;
 
-    fn mul(self, other: Differential<Order, N, Data2>) -> Self::Output {
+    fn mul(self, other: Differential<Order, N, Data>) -> Self::Output {
         if !self.is_shape_defined() && !other.is_shape_defined() {
-            let mut result = self.into_owned();
+            let result = self.into_owned();
             result.data.slice_mut()[0] *= other.data_slice()[0];
             return result;
         } else if !self.is_shape_defined() {
-            if let Some(n) = self.n().value() {
-                assert_eq!(n, other.n().value().unwrap());
-            }
-            if let Some(order) = self.order().value() {
-                assert_eq!(order, other.order().value().unwrap());
-            }
             let mut result = other.into_owned();
-            let data = result.data.slice_mut();
-            for c in data {
-                *c *= self.data_slice()[0];
-            }
+            result.data.slice_mut()[0] *= self.data_slice()[0];
             return result;
         } else if !other.is_shape_defined() {
-            if let Some(n) = self.n().value() {
-                assert_eq!(n, self.n().value().unwrap());
-            }
-            if let Some(order) = self.order().value() {
-                assert_eq!(order, self.order().value().unwrap());
-            }
             let mut result = self.into_owned();
-            let data = result.data.slice_mut();
-            for c in data {
-                *c *= other.data_slice()[0];
-            }
+            result.data.slice_mut()[0] *= other.data_slice()[0];
             return result;
         }
 
-        let n = self.n().value().unwrap();
-        let other_n = other.n().value().unwrap();
-        assert_eq!(n, other_n);
+        // if we are here, both shapes are defined
 
-        let order = self.order().value().unwrap();
-        let other_order = other.order().value().unwrap();
+        assert_eq!(self.n().value(), other.n().value());
 
-        if order == other_order && n == 1 {
-            match (order, true) {
+        if self.order().value() == other.order().value() && self.n().value().unwrap() == 1 {
+            match (self.order().value().unwrap(), true) {
                 // TODO these specializations will speed up the code a lot in debug mode
                 // but they slow down the code in release mode! Should I remove them for concistency
                 // or enable them only in debug mode?
@@ -94,55 +70,56 @@ where
                 }
                 _ => {
                     // TODO the following algorithm works even is the orders are different, remove the bound on the order
-                    let self_n = self.n();
-                    let self_order = self.order();
+                    let order = self.order;
+                    let n = self.n;
                     let lhs = self.polynomial_coeffs();
                     let lhs = lhs.slice();
                     let rhs = other.clone().polynomial_coeffs();
                     let rhs = rhs.slice();
-                    let mut data = Data::owned_from_fn(number_of_elements(n, order), |_| Zero::zero());
+                    let mut data = Data::owned_from_fn(number_of_elements(n.value().unwrap(), order.value().unwrap()), |_| Zero::zero());
                     let data_slice = data.slice_mut();
-                    for i in 0..=order {
-                        for j in 0..=(order - i) {
+                    for i in 0..=order.value().unwrap() {
+                        for j in 0..=(order.value().unwrap() - i) {
                             data_slice[i + j] += lhs[i].clone() * &rhs[j];
                         }
                     }
-                    Self::Output::from_polynomial_coeffs(data, self_order, self_n)
+                    Self::Output::from_polynomial_coeffs(data, order, n)
                 }
             }
         } else {
             let value = self.value().clone() * other.value();
-            if order == 0 {
+            if self.order().value().unwrap() == 0 {
                 Self::Output::from_data(self.order, self.n, Data::from_slice(&[value]))
             } else {
-                let derivatives = self.derivatives() * &other.drop_one_order() + other.derivatives() * &self.drop_one_order();
+                let derivatives = self.derivatives() * &self.drop_one_order() + other.derivatives() * &other.drop_one_order();
                 let data = std::iter::once(value)
-                    .chain(derivatives.unwrap_data().make_into_iter());
-                Self::Output::from_data(self.order, self.n, Data::from_iter(data)) // TODO <- optimize
+                    .chain(derivatives.unwrap_data().into_iter())
+                    .collect::<Vec<_>>();
+                Self::Output::from_data(self.order, self.n, Data::from_slice(&data[..])) // TODO <- optimize
             }
         }
     }
 }
 
-impl<Order: Dim, N: Dim, Data, Data2> Mul<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
+impl<Order: Dim, N: Dim, Data> std::ops::Mul<&Differential<Order, N, Data>> for Differential<Order, N, Data>
 where
     Data: ConstStorage + Clone,
-    Data::Owned: MutStorage<Item = Data::Item> + Clone,
-    Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
-    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign,
+    Data::Owned: MutStorage<Item = Data::Item>,
+    Differential<Order, N, Data>: Clone,
+    Data::Item: Zero + for <'a> std::ops::Mul<&'a Data::Item, Output = Data::Item> + std::ops::AddAssign + Real + std::ops::MulAssign,
 {
     type Output = Differential<Order, N, Data::Owned>;
 
-    fn mul(self, other: &Differential<Order, N, Data2>) -> Self::Output {
+    fn mul(self, other: &Differential<Order, N, Data>) -> Self::Output {
         self.mul(other.clone())
     }
 }
 
-impl<Order: Dim, N: Dim, Data, Data2> MulAssign<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
+impl<Order: Dim, N: Dim, Data, Data2> std::ops::MulAssign<&Differential<Order, N, Data2>> for Differential<Order, N, Data>
 where
     Data: ConstStorage, // TODO use mut to avoid clone
     Data2: ConstStorage<Item = Data::Item> + Clone,
-    for <'a> Self: Mul<&'a Differential<Order, N, Data2>, Output = Self> + Clone, // TODO without Clone
+    Self: for <'a> std::ops::Mul<&'a Differential<Order, N, Data2>, Output = Self> + Clone, // TODO without Clone
 {
     fn mul_assign(&mut self, other: &Differential<Order, N, Data2>) {
         *self = self.clone() * other;

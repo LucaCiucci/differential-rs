@@ -1,0 +1,423 @@
+
+//#import "@preview/charged-ieee:0.1.0": ieee
+#import "common_styles.typ": *
+#import "boxes.typ": *
+#import "project.typ": *
+#import "@preview/algo:0.3.3": algo, i, d, comment, code
+
+#let ref-enzyme = [@NEURIPS2020_9332c513 #ref(label("10.1145/3458817.3476165")) #ref(label("10.5555/3571885.3571964"))]
+
+#let diff-package = link("https://github.com/LucaCiucci/differential-rs")[`differential`] + [@differential-repo]
+
+//#let branch = {
+//  let file = read("../.git/HEAD");
+//  let branch = file.split("/").last();
+//  branch.trim()
+//}
+#let orig_hash = {
+  let file = read("../.git/ORIG_HEAD");
+  file.trim()
+}
+
+#let code_ref(file, line: -1) = {
+    let url = "https://github.com/LucaCiucci/differential-rs/blob/" + orig_hash + "/" + file;
+    let line = if type(line) == "string" {
+        let file = read("../" + file);
+        let line = file.split("\n").enumerate().find((nl) => nl.at(1).contains(line));
+        if line == none {
+            panic("line not found")
+        }
+        line.at(0) + 1
+    } else {
+        line
+    }
+    let content = if line < 0 {
+        file
+    } else {
+        url = url + "#L" + str(line);
+        file + ":" + str(line)
+    };
+    link(url, raw(content, block: false))
+    footnote(link(url, url))
+}
+// https://github.com/LucaCiucci/differential-rs/blob/d0e5265b9a68b21b916f803d1ced764996c279a8/Cargo.toml#L13
+
+#show: common_styles
+#show: project.with(
+  title: "Efficient Forward Mode Automatic Differentiation",
+  authors: (
+    (name: "Luca Ciucci", email: "luca.ciucci99@gmail.com"),
+  ),
+  abstract: [
+    We present a novel /*TODO maybe advanced/generic instead of advances??*/ implementation of the forward mode automatic differentiation algorithm written in Rust, #diff-package, that allows for efficient arbitrary-order and arbitrary number of variables derivatives computation. We analyze different approaches to the problem and we elaborate an implementation that can be easily extended and optimized.
+  ],
+)
+
+= Introduction
+
+Automatic Differentiation (AD) is a method that provides a way to compute the derivative of a function by using the chain rule without explicitly computing finite differences as they are subjected both to truncation error and round-off error @autodiff-in-machine-learning. Not all problems require an accurate derivatives estimation, for example in some optimization problems @adam, but in other cases we may want a correct and efficient estimation of the derivatives, for example in some Monte Carlo @stochastic-ADMC or Hybrid Monte Carlo @autodiff-in-machine-learning processes.\
+AD is usually divided into two main categories: Forward Accumulation mode (FAD) and Reverse Accumulation mode (RAD). In this work we focus on the FAD, which is more suitable for problems with a small number of input variables.\
+Hybrid methods that combine the two modes are also possible, but they are not the focus of this work.\
+
+= Target usage <target-usage>
+
+This work focuses on a practical implementation of FAD in Rust and the target usage consist in the differentiation of of specific functions or generic-typed functions in the form:
+```rust
+fn f<T: Real>(x: T) -> T {
+  // ...
+}
+```
+where `Real` is a trait that represents a real number, and `T` is a generic type that implements the `Real` trait.\
+This feels like the natural approach with statically typed languages, but other possibilities have been explored before, for example leveraging on an IR manipulation #ref-enzyme. We focus on a regular generic based approach because it is a straightforward approach and simpler to use for many applications as it does not require a specific compiler pipeline, even though it requires the code to be compatible with the provided types.
+
+= Convergence of AD in recursive algorithms <ad-convergence-in-recursive-algorithms>
+// TODO maybe "... in fixed point search algorithms" or something like that
+
+Before going on, we prove a trivial result that might be required in some problems. Some algorithms may not be expressed in closed form and, instead, they rely on recursion.
+As an example, we might want to apply AD to the result of the Newton algorithm to find roots. In this case we have:
+$
+bold(x)_(n+1) = bold(x)_n - J^(-1)(bold(x)_n) space f(bold(x)_n)
+$ <newton-ad-application-example>
+An example is the application is the recursive algorithm described described in @ad-1d-taylor-series[?].
+
+In practice, we find that, for _well behaved_ recursive algorithms, AD works as expected. ????????????\
+
+Intuitively, it might look obvious that AD works for recursive algorithms because we are just taking the Taylor expansion of the function and, be it recursive or not, the Taylor expansion should always provide us a valid approximation of the function.\
+On the other hand, one might think that, while the central value converges, its is not guaranteed that the Taylor expansion converges (and if so, to what). In other words, we want to be sure that AD does not produce any "sawtooth" pattern.
+
+Before going on with implementation, we want to make sure that AD works for recursive algorithms that might emerge both in the implementation or in the usage of AD.
+
+#warning(title: [Meaning _well behaved_ recursive algorithms])[
+  I don't have a proper definition for this, but clearly there are algorithms where AD is meaningless.\
+  For a counter example, we can consider the Metropolis-Hastings algorithm (@the-metropolis-hastings-algorithm[?]).
+  We can study the last point generated by the algorithm as a function of the initial point (i.e. $x_N = f_N (x_0)$).
+  We expect that, for a finite number of steps and by fixing the PRNG's seed, by changing just a little bit the initial point, the accepted/rejected steps will be the same and, as a consequence:
+  $
+  f_N (x_0 + delta) = f_N (x_0) + delta space "for" delta "small"
+  $
+  This means that AD will always produce the following result:
+  $
+  forall N: cases(
+      x_N = f_N (x_0),
+      x'_N = x'_0,
+      x''_N = x''_0,
+      ...
+  )
+  $
+  This looks pretty boring and strange: we expect that, by changing even by little the initial point, the last point generated by the algorithm will change a lot.\
+  The truth is that AD is giving us the correct result but, by increasing $N$, the range of validity of the taylor expansion of $f_N$ around $x_0$ decreases and should converge to $0$ as $N$ goes to infinity.\
+  This tels us that taking derivatives of the MH algorithm with respect to the initial condition is meaningless. This was obvious but it is just an example of a recursive algorithm where the application of AD is meaningless.
+]
+
+What all these algorithms have in common is that they can be expressed as a recursive succession. ???????????\
+Let's consider the parameter-dependant recursive succession:
+$
+a_(n + 1) = f(a_n, p)
+$ <recursive-succession>
+
+#note[
+  We consider only the cases where $f$ is differentiable with respect to $a$ and $p$.
+]
+
+We have:
+$
+frac(d, d p) a_(n+1) &= frac(d, d p) f(a_n, p) \
+&= f_x (a_n, p) frac(d, d p) a_n + f_y (a_n, p) \
+$ <recursive-succession-derivative>
+where $f_x = frac(diff, diff x) f(x,y)$ and $f_y = frac(diff, diff y) f(x,y)$ are the partial derivatives of $f$.
+
+If $a_n$ converges to $a$, the equation becomes:
+$
+frac(d, d p) a = f_x (a, p) frac(d, d p) a + f_y (a, p)
+$
+hence:
+$
+frac(d, d p) a = frac(f_y (a, p), 1 - f_x (a, p))
+$
+
+The good news is that the fixed point is only one and it is the correct derivative. This equation would also allow us to compute the derivative of the fixed point with respect to $p$ without having to fully compute the succession using AD.
+
+#note[
+    This gives us an optimization chance: we could compute the algorithm using AD and just compute the derivatives of $f$ once we have the fixed point.\
+    The reason I would never do this is that, in most cases, the benefit is just not worth it compared to the added complexity (especially in the $N$-D case).
+]
+
+I now ask myself:
++ under what conditions the succession converges?
++ that happens if $f_x (a, p) = 1$?
+
+Answering these questions is trivial. We are interested into looking ad well behaved functions that are $C^1$ in a neighborhood of the fixed point $x_0$.\
+If the succession @recursive-succession converges, we have $abs(f'(x_0)) < 1$, hence the derivatives succession @recursive-succession-derivative also converges to the correct value because of the stability criterion of the fixed point.
+
+The edge case $f_x (a, p) = 1$ is the case where it is not possible to determine the stability of the fixed point using the first derivative criterion and we would have to investigate higher order derivatives, but this is not the case we are interested in.
+
+Using induction, we can prove that, if $f$ is smooth, higher order derivatives of the succession also converge to the correct value. This explains why the `sqrt`??? algorithm presented in @square-root works.
+
+= Possible implementations for FAD <possible-implementations>
+
+The core of the implementation consists in choosing the representation. We present some obvious choices.
+
+We (improperly) call the type defined by the implementation `Differential` as it is the name chosen in our implementation.
+
+== 1D Taylor series <ad-1d-taylor-series>
+
+This may be the most obvious choice. In this implementation the `Differential` is just the arbitrary order 1D Taylor expansion of the function.\
+Many basic operations are defined in terms of the Taylor expansion by just using the basic operations defined on the Taylor polynomial.\
+
+The implementation has some problems as it is not always easy to write the expansion of every operation and, some operations have polynomial truncation edge cases to consider.\
+Another problem is that we may not be interested in the 1D expansion and, conceptually, working with arbitrary order ND Taylor expansion is not trivial and also higher order coefficients may end up being very small.
+
+== Plain first-order AD <ad-first-order-ad>
+
+This may look like a downgrade compared to the first implementation as it computes just the first derivative.\
+The advantage is that now, expressing basic operations is trivial and there is an obvious way of representing higher order derivatives as shown below.
+
+We define the differential:
+#let differential(f) = $D lr(angle.l #f angle.r)$
+#let jac(f) = $bold(J) lr(angle.l #f angle.r)$
+$
+differential(cal(F)) = (cal(F), jac(cal(F)))
+$ <ad-differentials-composition>
+where $cal(F)$ is a field and $jac(cal(F))$ is a jacobian object over the space of $cal(F)$. This notation is chosen to resemble the Rust implementation. \
+Then, a first order differential like described in @ad-first-order-ad would just be $differential(RR)$. We could then recur and define a second order differential as $differential(differential(RR))$ and so on.
+
+As a practical example, let's analyze what $D(D(RR))$ is:
+$
+differential(differential(RR)) = (differential(RR), jac(differential(RR))) = ((RR, jac(RR)), (jac(RR), jac(jac(RR))))
+$
+This looks particularly bad: if we want to take the derivative with respect to two variables $x$ adn $y$, a differential would look like:
+$
+((f, f_y), (f_x, f_(x y)))
+$
+but we have:
++ 1x $0$-order derivative (OK)
++ 2x $1$-order derivatives (OK)
++ 1x $2$-order derivative (not OK)
+Also, if we want the second order with respect to the same variable, we would get:
+$
+((f, f_x), (f_x, f_(x x)))
+$ <ad-differential-composition-repetition-problem>
+which is sub-optimal as the first order derivatives are computed and stored twice. If consider the $k$-order, we would get $2^k$ elements to store and compute: this would be problematic as we would usually store elements on the stack, hence we would have to limit the order of the differential to a small number. This is much worse than @ad-1d-taylor-series!
+
+If we want to recover the advantages of @ad-1d-taylor-series in terms of memory, we would like to rewrite the terms as:
+$
+(f, underbracket(diff_alpha f, #[jacobian]), underbracket(diff_alpha^2 f, #[hessian]), diff_alpha^3 f, ...)
+$ <ad-differential-serialized>
+We notice that, for a single variable, we recover the layout of @ad-1d-taylor-series.
+
+This poses some problems since the number of derivatives grows exponentially with the order of the differential, bu we could leverage on the symmetry of second derivatives to reduce the number of derivatives to compute and store since, for the functions we are usually interested in computing derivatives of, derivatives will commute. // conditions ??? we are interested in well behaved cases anyway
+
+== Hybrid representation approach <ad-hybrid-representation-approach>
+
+If we try to write down the 3rd order differential for 3 variables, we would get:
+#let unn(it, ok) = if ok > 0 { text(gray, it) } else { it }
+
+#text(10pt)[$
+(
+  f,
+  vec(f_x, f_y, f_x),
+  mat(
+    vec(unn(f_(x x), #0), unn(f_(x y), #0), unn(f_(x z), #0)),
+    vec(unn(f_(y x), #1), unn(f_(y y), #0), unn(f_(y z), #0)),
+    vec(unn(f_(z x), #1), unn(f_(z y), #1), unn(f_(z z), #0)),
+  ),
+  mat(
+    cases(
+      unn(vec(unn(f_(x x x), #0), unn(f_(x x y), #0), unn(f_(x x z), #0)), #0),
+      unn(vec(unn(f_(x y x), #1), unn(f_(x y y), #0), unn(f_(x y z), #0)), #0),
+      unn(vec(unn(f_(x z x), #1), unn(f_(x z y), #1), unn(f_(x z z), #0)), #0),
+    ),
+    cases(
+      unn(vec(unn(f_(y x x), #0), unn(f_(y x y), #0), unn(f_(y x z), #0)), #1),
+      unn(vec(unn(f_(y y x), #1), unn(f_(y y y), #0), unn(f_(y y z), #0)), #0),
+      unn(vec(unn(f_(y z x), #1), unn(f_(y z y), #1), unn(f_(y z z), #0)), #0),
+    ),
+    cases(
+      unn(vec(unn(f_(z x x), #0), unn(f_(z x y), #0), unn(f_(z x z), #0)), #1),
+      unn(vec(unn(f_(z y x), #1), unn(f_(z y y), #0), unn(f_(z y z), #0)), #1),
+      unn(vec(unn(f_(z z x), #1), unn(f_(z z y), #1), unn(f_(z z z), #0)), #0),
+    ),
+  )
+)
+$]
+
+And we see that there are $1 + 3 + 9 + 27 = #(1 + 3 + 9 + 27)$ elements, but only $1 + 3 + 6 + 10 = #(1 + 3 + 6 + 10)$ unique values because of @symmetry-of-second-derivatives.
+
+The problem with this approach is practical: as it is easy to store the elements in a plain format, retrieving the index of the element in the matrix is not trivial and would require to compute sums of multinomial coefficients for each access. If $N$ and $K$ are known at compile time, we could work to somehow pre-compute all the necessary indexes, but in the opposite case this would be problematic.\
+In reality we find that the storing all the derivatives requires an exponentially memory and computing cost, performing this optimization is certainly worth it.
+
+We decided to use this approach in our implementation as it requires the minimum amount of memory.
+
+= Implementation <implementation>
+
+The representation described in @ad-hybrid-representation-approach presents an interesting property: if we recall @ad-differentials-composition and @ad-differential-composition-repetition-problem we find that the representation is just:
+$
+(f, diff_alpha f, diff_alpha^2 f, diff_alpha^3 f, ..., diff_alpha^K f)
+$ <ad-differential-serialized-plain>
+And this means we could technically reinterpret @ad-differential-serialized-plain as @ad-differentials-composition:
+$
+(underbracket(#$f, diff_alpha f, diff_alpha^2 f, diff_alpha^3 f, ...$, #[value]), diff_alpha^K f)
+<==>
+(f, underbracket(#$diff_alpha f, diff_alpha^2 f, diff_alpha^3 f, ..., diff_alpha^K f$, #[derivative]))
+$ <ad-differential-serialized-plain-reinterpretation>
+In C++, we could thing to use variadic template parameters to represent this tuple and easily take into consideration the "value" or the "derivative" part. In practice though, this is not trivial since the memory layout of a tuple might have some padding because of the alignment of the elements.\
+Rust makes implementing this representation with tuples difficult both because of the lack of variadic template arguments and the unsafety of unions @rust-union that discourages this kind of approach.\
+We could then use a different approach, store the elements in plain array and use use custom mapping functions to map derivative orders to indexes and vice versa. This is the approach we chose to use in our implementation.\
+This also has the advantage of being generic over the use of compile-time determined shape and the use of dynamic shape, which is a feature we are also interested in.
+
+This approach is the core of our implementation where there are two main structures:
++ the `Differential` struct that represents the differential of a function
++ the `Derivatives` struct that can be used to reference the "derivative" part of a `Differential`.
+
+We see that considering the "value" of a differential (implemented with the  `drop_one_derivative` method) is trivial as it just consist in taking the reference to the first elements of the array and just reinterpreting them as a `Differential` of order $K - 1$.\
+Similarly, considering the "derivative" part of a differential (implemented with the `derivatives` method) consist in taking the reference to the last elements of the array and just reinterpreting them as a Jacobian made of #(`Differential`)s of order $K - 1$.
+
+== Memory layout <memory-layout>
+
+The base of our our mapping is computing the number of elements in in our representation. We following formula is used:
+$
+"#elements"(N, K) = cases(
+  1 space "if" K = 0,
+  sum_(n = 1)^(N) "#elements"(n, K - 1)
+)
+$ <ad-differential-serialized-size>
+Where $N$ is the number of variables and $K$ is the order of the differential.
+
+#figure(
+  image("figs/number_of_elements.svg", width: 60%),
+  caption: [
+    "Number of elements in the representation of a differential of order $K$ for $N$ variables."
+  ]
+)
+
+#todo[
+  ... describe all the mapping functions AND ELI5...
+]
+
+All the above methods are specialized are recursive but explicit forms are used for some shapes in order to reduce complexity.
+
+Given these mapping layout, we can easily express the "value" and "derivative" part:
+#todo[
+  ...
+]
+
+== Storage Containers and Shape <storage-containers-and-shape>
+
+Storing elements is another crucial part of our implementation. We define two main traits:
+- `ConstStorage`
+- `MutStorage`
+Storage containers which implements these traits just provide access tho the elements like a plain array.
+
+Containers may be owned (like `Vec`) or borrowed (like `&[T]`), tis allows taking views of the differentials in an efficient way.
+
+A full declaration of the `Differential` is then:
+```rs
+struct Differential<Order, N, Data> {
+    order: Order,
+    n: N,
+    data: Data,
+}
+```
+and the sames pattern applies to the `Derivatives` struct. Actual implementation can be found in #code_ref("src/lib.rs", line: "pub struct Differential<Order: Dim, N: Dim, Data>")
+
+== Basic operations <basic-operations>
+
+In order for this library to be useful, we need basic operations to be defined on #(`Differential`)s.
+
+Defining operations over all the possible shapes of the `Differential` may look challenging, and, in fact, it is if we want to explicitly write them down.\
+There is a caveat though that allows us to express complex operations in terms of first order differentials.
+
+=== Multiplication <multiplication>
+
+Let us consider the case of the multiplication of two differentials `mul(a, b)` because it is the simplest example.
+
+For order 1, the chain rule gives us:
+$
+(f, diff_alpha f) (g, diff_alpha g) = (f g, f space diff_alpha g + g space diff_alpha f)
+$
+
+We then have:
+#algo(
+  title: "mul",
+  parameters: ($f$, $g$),
+)[
+  if $K$ == 0: #i\
+    return $"val"(f) * "val"(g)$#d\
+  else: #i\
+    return (#i\
+      $"val"(f) * "val"(g)$, #comment($f g$)\
+      $"val"(f) * "deriv"(g) + "val"(g) * "deriv"(f)$ #comment($f space diff_alpha g + g space diff_alpha f$)#d\
+    )#d
+]
+where $f$ and $g$ are the differentials and $K$ is the order of the differential.
+The corresponding relevant Rust code would look something like:
+```rs
+a.derivatives() * b.drop_one_order() + b.derivatives() * a.drop_one_order()
+```
+
+This means that for any shape of the differential we can easily express any operation in terms of the first order differential.
+
+In practice, for the multiplication case, this would be sub-optimal as we would compute the intermediate pieces ```rs a.derivatives() * b.drop_one_order()``` that would require allocating intermediate instances of the differential while for some shapes we know the explicit form of the differential.\
+The current multiplication rule is currently specialized for first order and backing up to the general rule for higher orders. This implementation formally requires checking against the shape of the differentia for each call but there are many optimizations the compiler can do to avoid this and this is because we bade the shape parameters generic: when `Order` and/or `N` types are `Fixed`, the compiler will know these shapes during generic specialization and remove unreachable branches when optimizations are enabled.
+
+=== Square root <square-root>
+
+A slightly more elaborate example is the square root operation.\
+The chain rule gives:
+$
+sqrt((f, diff_alpha f)) = (sqrt(f), frac(diff_alpha f, 2 sqrt(f)))
+$
+that can be implemented with  the following algorithm:
+#algo(
+  title: "sqrt",
+  parameters: ($f$,),
+)[
+  if $K$ == 0: #i\
+    return $sqrt(f_0)$#d\
+  else: #i\
+    let $r$ = SQRT(val($f$)) #comment[recursion for $sqrt(f)$]\
+    return (#i\
+      $r_0$, #comment($sqrt(f)$)\
+      $"deriv"(f) \/ 2r$ #comment($frac(diff_alpha f, 2 sqrt(f))$)#d\
+    )#d
+]
+There is also another obvious way of computing the square root, which is the Heron's method @heron-sqrt:
+#algo(
+  title: "babylon_sqrt",
+  parameters: ($x$, $N$),
+)[
+  $r <- sqrt(x_0)$ #comment[our initial guess is the *constant* root]\
+  for \_ in 0..$N$: #i\
+    $r <- (r + x \/ s)/2$ #comment[Heron's step] #d\
+  return $r$
+]
+In practice, we observe that the derivatives converge in a few steps (usually 5).
+#todo[
+  an appropriate test and analysis of the convergence of the derivatives / error. Decide which one is the most efficient and/or accurate.
+]
+
+= Allocations optimization <allocations-optimization>
+
+#todo[
+  ...
+]
+
+= Benchmarks <benchmarks>
+
+#todo[
+  ...
+]
+
+= Future work <future-work>
+
+#todo[
+  ...
+]
+
+= Conclusion <conclusion>
+
+#todo[
+  ...
+]
+
+#bibliography("bibliography.yaml")

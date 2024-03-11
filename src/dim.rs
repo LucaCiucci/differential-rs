@@ -3,22 +3,30 @@ use std::fmt::Debug;
 
 
 pub trait Dim: Debug + Copy {
-    fn value(&self) -> usize;
+    fn value(&self) -> Option<usize>;
+    fn undef() -> Self;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Fixed<const N: usize>;
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Dynamic(pub usize);
 
 impl<const N: usize> Dim for Fixed<N> {
-    fn value(&self) -> usize {
-        N
+    fn value(&self) -> Option<usize> {
+        Some(N)
+    }
+    fn undef() -> Self {
+        Self
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Dynamic(pub Option<usize>);
+
 impl Dim for Dynamic {
-    fn value(&self) -> usize {
+    fn value(&self) -> Option<usize> {
         self.0
+    }
+    fn undef() -> Self {
+        Self(None)
     }
 }

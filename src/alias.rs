@@ -34,7 +34,7 @@ pub type DynDiff<T = f64> = Differential<Dynamic, Dynamic, Vec<T>>;
 
 impl<T> Diff1<T>
 where
-    T: Clone
+    T: Clone + Zero,
 {
     pub fn val_deriv(
         value: T,
@@ -50,7 +50,7 @@ where
 
 impl<T> From<(T, T)> for Diff1<T>
 where
-    T: Clone
+    T: Clone + Zero,
 {
     fn from((value, derivative): (T, T)) -> Self {
         Self::val_deriv(value, derivative)

@@ -1,6 +1,13 @@
 use crate::DiffIndex;
 
-
+#[inline(always)]
+pub const fn maybenumber_of_elements(n: Option<usize>, order: Option<usize>) -> usize {
+    if let (Some(n), Some(order)) = (n, order) {
+        number_of_elements(n, order)
+    } else {
+        1
+    }
+}
 
 #[inline(always)]
 pub const fn number_of_elements(n: usize, order: usize) -> usize {
@@ -79,7 +86,24 @@ pub fn offset_of_impl( // TODO const fn
     }
 }
 
+#[inline(always)]
 pub const fn offset_under(
+    n: usize,
+    ii: usize,
+    order: usize,
+) -> usize {
+    // TODO to check
+    if order == 0 {
+        0
+    } else if order == 1 {
+        n - ii - 1
+    } else {
+        offset_under_plain(n, ii, order)
+    }
+}
+
+#[inline(always)]
+pub const fn offset_under_plain(
     n: usize,
     ii: usize,
     order: usize,
@@ -91,4 +115,18 @@ pub const fn offset_under(
         offset += number_of_elements(i, order - 1);
     }
     offset
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_offset_under_optimizations() {
+        //assert_eq!(offset_under(10, 0, 0), offset_under_impl(10, 0, 0)); TODO panics
+        //assert_eq!(offset_under(10, 5, 0), offset_under_impl(10, 5, 0)); TODO panics
+        assert_eq!(offset_under(10, 0, 1), offset_under_plain(10, 0, 1));
+        assert_eq!(offset_under(10, 5, 1), offset_under_plain(10, 5, 1));
+        assert_eq!(offset_under(13, 7, 1), offset_under_plain(13, 7, 1));
+    }
 }

@@ -7,14 +7,16 @@ use super::*;
 
 
 
-impl<T, D> One for Differential<T, D>
+impl<Order: Dim, N: Dim, Data: ConstStorage> One for Differential<Order, N, Data>
 where
-    T: One,
-    D: Zero,
+    Data::Item: One,
+    Data::Item: Zero,
     Self: std::ops::Mul<Output = Self>,
 {
-    fn one() -> Differential<T, D> {
-        Differential::new(T::one(), D::zero())
+    fn one() -> Differential<Order, N, Data> {
+        Differential::from_data(
+            Order
+        )
     }
 }
 
