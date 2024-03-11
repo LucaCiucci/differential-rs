@@ -273,6 +273,15 @@ There is also another obvious way of computing the square root, which is the Her
 In practice, we observe that the derivatives converge in a few steps (usually 5), this was expected as described in @ad-convergence-in-recursive-algorithms.
 #todo[
   an appropriate test and analysis of the convergence of the derivatives / error. Decide which one is the most efficient and/or accurate.
+
+  #figure(
+    stack(dir: ltr, stack(image("time_vs_n.svg", width: 40%), [(a)]), stack(image("time_vs_order.svg", width: 40%), [(b)])),
+    caption: [
+      Time per evaluation of @babylon_sqrt with `n_steps = 10`.\
+      (a) Time per evaluation as a function of the number of variables (first order), we see a linear trend.\
+      (b) Time per evaluation as a function of the order of the differential (one variable), we see quadratic trend.
+    ]
+  )
 ]
 
 = Static memoization <static-memoization>
@@ -313,25 +322,18 @@ In practice, we observe that the derivatives converge in a few steps (usually 5)
     generalize for generic dimension
   ]
 
-  Before going on, we prove a trivial result that is required for @babylon_sqrt might be required in some problems. Some algorithms may not be expressed in closed form and, instead, they rely on recursion.
+  This simple result is required for @babylon_sqrt and might be required in some problems.
+
+  Some algorithms may not be expressed in closed form and, instead, they rely on recursion where the solution is the fixed point of succession.\
   As an example, we might want to apply AD to the result of the Newton algorithm to find roots. In this case we have:
   $
   bold(x)_(n+1) = bold(x)_n - J^(-1)(bold(x)_n) space f(bold(x)_n)
   $ <newton-ad-application-example>
   An example is the application is the recursive algorithm described described in @ad-1d-taylor-series[?].
 
-  In practice, we find that, for _well behaved_ recursive algorithms, AD works as expected. ????????????\
-
   Intuitively, it might look obvious that AD works for recursive algorithms because we are just taking the Taylor expansion of the function and, be it recursive or not, the Taylor expansion should always provide us a valid approximation of the function.\
   On the other hand, one might think that, while the central value converges, its is not guaranteed that the Taylor expansion converges (and if so, to what). In other words, we want to be sure that AD does not produce any "sawtooth" pattern.
 
-  Before going on with implementation, we want to make sure that AD works for recursive algorithms that might emerge both in the implementation or in the usage of AD.
-
-  #todo[
-    reference @well-behaved-differentiable-algorithm
-  ]
-
-  What all these algorithms have in common is that they can be expressed as a recursive succession. ???????????\
   Let's consider the parameter-dependant recursive succession:
   $
   a_(n + 1) = f(a_n, p)
@@ -348,32 +350,39 @@ In practice, we observe that the derivatives converge in a few steps (usually 5)
   $ <recursive-succession-derivative>
   where $f_x = frac(diff, diff x) f(x,y)$ and $f_y = frac(diff, diff y) f(x,y)$ are the partial derivatives of $f$.
 
-  If $a_n$ converges to $a$, the equation becomes:
+  If $a_n$ converges to $a$, the equation for the fixed point of the derivative succession becomes:
   $
   frac(d, d p) a = f_x (a, p) frac(d, d p) a + f_y (a, p)
   $
   hence:
   $
   frac(d, d p) a = frac(f_y (a, p), 1 - f_x (a, p))
-  $
+  $ <derivative-fixed-point>
 
-  The good news is that the fixed point is only one and it is the correct derivative. This equation would also allow us to compute the derivative of the fixed point with respect to $p$ without having to fully compute the succession using AD.
+  So the fixed point is only one and it is the correct derivative.\
+  If the the $a_n$ succession converges because of the _stability criterion of the fixed point_ @fixed-point, we have $abs(f'(x_0)) < 1$ and $f in C^1$ in a neighborhood of the fixed point $x_0$, so @recursive-succession-derivative also converges for the same criterion.\
+  This can be iterated for higher order derivatives so all the derivatives also converge.
 
-  #note[
-      This gives us an optimization chance: we could compute the algorithm using AD and just compute the derivatives of $f$ once we have the fixed point.\
-      The reason I would never do this is that, in most cases, the benefit is just not worth it compared to the added complexity (especially in the $N$-D case).
-  ]
-
-  I now ask myself:
-  + under what conditions the succession converges?
-  + that happens if $f_x (a, p) = 1$?
-
-  Answering these questions is trivial. We are interested into looking ad well behaved functions that are $C^1$ in a neighborhood of the fixed point $x_0$.\
-  If the succession @recursive-succession converges, we have $abs(f'(x_0)) < 1$, hence the derivatives succession @recursive-succession-derivative also converges to the correct value because of the stability criterion of the fixed point.
+  This equation would also allow us to compute the derivative of the fixed point with respect to $p$ without having to fully compute the succession using AD.
 
   The edge case $f_x (a, p) = 1$ is the case where it is not possible to determine the stability of the fixed point using the first derivative criterion and we would have to investigate higher order derivatives, but this is not the case we are interested in.
 
-  Using induction, we can prove that, if $f$ is smooth, higher order derivatives of the succession also converge to the correct value. This explains why the `sqrt`??? algorithm presented in @square-root works.
+  For multi-variable differential, the same reasoning applies where, instead of the derivative of the fixed point, we have the Jacobian of the fixed point and the criterion $abs(f'(x_0)) < 1$ becomes $max(abs("eigenvalues"(J))) < 1$.
+
+  #todo[
+    $max(abs("eigenvalues"(J))) < 1$ sounds reasonable but I don't have a proof/reference for this at the moment.
+  ]
+
+  This explains why @babylon_sqrt and any other newton-like algorithm works with AD.
+
+  #note[
+    This gives us two optimization chances:
+    + we could compute the algorithm using AD and just compute the derivatives of $f$ once we have the fixed point (this is implemented in line 1 of @babylon_sqrt).\
+    + we could use @derivative-fixed-point to explicitly find the derivative and avoid iterating
+    #todo[
+      try to implement the second point for the square root. and compare with @general-sqrt and @babylon_sqrt. (maybe *it is the same* of @general-sqrt ???)
+    ]
+  ]
 ]
 
 #appendix(

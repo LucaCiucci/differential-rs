@@ -91,3 +91,10 @@ heron-sqrt:
   url:
     value: https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Heron's_method
     date: 2024-03-10
+
+fixed-point:
+  type: Web
+  title: Fixed point (mathematics)
+  url:
+    value: https://en.wikipedia.org/wiki/Fixed_point_(mathematics)
+    date: 2024-03-10
