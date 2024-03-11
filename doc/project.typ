@@ -34,7 +34,13 @@
       gutter: 1em,
       ..authors.map(author => align(center)[
         *#author.name* \
+        #author.affiliation \
+        // TODO #author.orcid \
+        #author.department \
+        #author.location \
         #author.email
+        //*#author.name* #footnote[#author.affiliation, #author.department, #author.location] \
+        //#author.email
       ]),
     ),
   )
