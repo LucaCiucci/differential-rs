@@ -73,18 +73,21 @@ NEURIPS2020_9332c513:
 
 symmetry-of-second-derivatives:
   type: web
+  title: Symmetry of second derivatives
   url:
     value: https://en.wikipedia.org/wiki/Symmetry_of_second_derivatives
     date: 2024-03-10
 
 rust-union:
   type: web
+  title: Rust Unions
   url:
     value: https://doc.rust-lang.org/reference/items/unions.html
     date: 2024-03-10
 
 heron-sqrt:
   type: web
+  title: Heron's method
   url:
     value: https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Heron's_method
     date: 2024-03-10

@@ -78,14 +78,14 @@ Hybrid methods that combine the two modes are also possible, but they are not th
 
 = Target usage <target-usage>
 
-This work focuses on a practical implementation of FAD in Rust and the target usage consist in the differentiation of of specific functions or generic-typed functions in the form:
+This work focuses on a practical implementation of FAD in Rust and the target usage consist in the differentiation of specific functions or generic-typed functions in the form:
 ```rust
 fn f<T: Real>(x: T) -> T {
   // ...
 }
 ```
 where `Real` is a trait that represents a real number, and `T` is a generic type that implements the `Real` trait.\
-This feels like the natural approach with statically typed languages, but other possibilities have been explored before, for example leveraging on an IR manipulation #ref-enzyme. We focus on a regular generic based approach because it is a straightforward approach and simpler to use for many applications as it does not require a specific compiler pipeline, even though it requires the code to be compatible with the provided types.
+This is a natural approach with statically typed languages, but other possibilities have been explored before, for example leveraging on an IR manipulation #ref-enzyme. We focus on a regular generic based approach since it is a straightforward approach and relatively simple to use for many applications as it does not require a specific compiler pipeline, even though it requires the code to be compatible with the provided types.
 
 = Possible implementations for FAD <possible-implementations>
 
@@ -98,13 +98,13 @@ We (improperly) call the type defined by the implementation `Differential` as it
 This may be the most obvious choice. In this implementation the `Differential` is just the arbitrary order 1D Taylor expansion of the function.\
 Many basic operations are defined in terms of the Taylor expansion by just using the basic operations defined on the Taylor polynomial.\
 
-The implementation has some problems as it is not always easy to write the expansion of every operation and, some operations have polynomial truncation edge cases to consider.\
-Another problem is that we may not be interested in the 1D expansion and, conceptually, working with arbitrary order ND Taylor expansion is not trivial and also higher order coefficients may end up being very small.
+This implementation has some problems as it is not always straightforward to write the expansion of every operation and some operations have polynomial truncation edge cases to consider that may lead to inefficiencies.\
+Another problem is that we may not be interested in the 1D expansion and, conceptually, working with arbitrary order $N$-dimensional Taylor expansion is not trivial. Also higher order coefficients may end up being very small.
 
 == Plain first-order AD <ad-first-order-ad>
 
 This may look like a downgrade compared to the first implementation as it computes just the first derivative.\
-The advantage is that now, expressing basic operations is trivial and there is an obvious way of representing higher order derivatives as shown below.
+The advantage is that now expressing basic operations is trivial and there is an obvious way of representing higher order derivatives as shown below.
 
 We define the differential:
 #let differential(f) = $D lr(angle.l #f angle.r)$
@@ -112,26 +112,24 @@ We define the differential:
 $
 differential(cal(F)) = (cal(F), jac(cal(F)))
 $ <ad-differentials-composition>
-where $cal(F)$ is a field and $jac(cal(F))$ is a jacobian object over the space of $cal(F)$. This notation is chosen to resemble the Rust implementation. \
-Then, a first order differential like described in @ad-first-order-ad would just be $differential(RR)$. We could then recur and define a second order differential as $differential(differential(RR))$ and so on.
+where $cal(F)$ is a field and $jac(cal(F))$ is a jacobian object over the space of $cal(F)$. This notation is chosen to resemble the practical Rust implementation. \
+Then, a first order differential like described in @ad-differentials-composition would just be $differential(RR)$. We could then recur and define a second order differential as $differential(differential(RR))$ and so on.
 
 As a practical example, let's analyze what $D(D(RR))$ is:
 $
 differential(differential(RR)) = (differential(RR), jac(differential(RR))) = ((RR, jac(RR)), (jac(RR), jac(jac(RR))))
 $
-This looks particularly bad: if we want to take the derivative with respect to two variables $x$ adn $y$, a differential would look like:
+This looks particularly bad: if we want to take the derivative with respect to two variables $x$ and $y$, a differential would look like:
 $
 ((f, f_y), (f_x, f_(x y)))
 $
-but we have:
-+ 1x $0$-order derivative (OK)
-+ 2x $1$-order derivatives (OK)
-+ 1x $2$-order derivative (not OK)
+where we have only one second order derivative.\
 Also, if we want the second order with respect to the same variable, we would get:
 $
 ((f, f_x), (f_x, f_(x x)))
 $ <ad-differential-composition-repetition-problem>
-which is sub-optimal as the first order derivatives are computed and stored twice. If consider the $k$-order, we would get $2^k$ elements to store and compute: this would be problematic as we would usually store elements on the stack, hence we would have to limit the order of the differential to a small number. This is much worse than @ad-1d-taylor-series!
+which is sub-optimal as the first order derivatives are computed and stored twice.\
+If consider the 2-variables $k$-order differential, we would get $2^k$ elements to store and compute: this would be problematic as we would usually store elements on the stack and we would have to limit the order of the differential to a small number.
 
 If we want to recover the advantages of @ad-1d-taylor-series in terms of memory, we would like to rewrite the terms as:
 $
@@ -139,7 +137,7 @@ $
 $ <ad-differential-serialized>
 We notice that, for a single variable, we recover the layout of @ad-1d-taylor-series.
 
-This poses some problems since the number of derivatives grows exponentially with the order of the differential, bu we could leverage on the symmetry of second derivatives to reduce the number of derivatives to compute and store since, for the functions we are usually interested in computing derivatives of, derivatives will commute. // conditions ??? we are interested in well behaved cases anyway
+This poses some problems since the number of derivatives grows exponentially with the order of the differential, but we could leverage on the symmetry of second derivatives to reduce the number of derivatives to compute and store since, for the functions we are usually interested in computing derivatives of, derivatives will commute. // conditions ??? we are interested in well behaved cases anyway
 
 == Hybrid representation approach <ad-hybrid-representation-approach>
 
@@ -194,7 +192,7 @@ $
 <==>
 (f, underbracket(#$diff_alpha f, diff_alpha^2 f, diff_alpha^3 f, ..., diff_alpha^K f$, #[derivative]))
 $ <ad-differential-serialized-plain-reinterpretation>
-In C++, we could thing to use variadic template parameters to represent this tuple and easily take into consideration the "value" or the "derivative" part. In practice though, this is not trivial since the memory layout of a tuple might have some padding because of the alignment of the elements.\
+In C++, we could think of using variadic template parameters to represent this tuple and easily take into consideration the "value" or the "derivative" part. In practice though, this is not trivial since the memory layout of a tuple might have some padding because of the alignment of the elements.\
 Rust makes implementing this representation with tuples difficult both because of the lack of variadic template arguments and the unsafety of unions @rust-union that discourages this kind of approach.\
 We could then use a different approach, store the elements in plain array and use use custom mapping functions to map derivative orders to indexes and vice versa. This is the approach we chose to use in our implementation.\
 This also has the advantage of being generic over the use of compile-time determined shape and the use of dynamic shape, which is a feature we are also interested in.
@@ -225,10 +223,15 @@ Where $N$ is the number of variables and $K$ is the order of the differential.
 )
 
 #todo[
-  ... describe all the mapping functions AND ELI5...
+  - describe all the mapping functions
+  - ELI5
+  - port them in a more mathematical form, justify them
+  - try to find a closed forms
+  - analyze the size trend (i suppose polynomial $O(K^N)$ but i'm not sure)
+  - analyze the complexity of the mapping functions
 ]
 
-All the above methods are specialized are recursive but explicit forms are used for some shapes in order to reduce complexity.
+All the above methods are recursive but explicit forms are used for some shapes in order to reduce complexity.
 
 Given these mapping layout, we can easily express the "value" and "derivative" part:
 #todo[
@@ -242,7 +245,7 @@ Storing elements is another crucial part of our implementation. We define two ma
 - `MutStorage`
 Storage containers which implements these traits just provide access tho the elements like a plain array.
 
-Containers may be owned (like `Vec`) or borrowed (like `&[T]`), tis allows taking views of the differentials in an efficient way.
+Containers may be owned (like `Vec`) or borrowed (like `&[T]`), this allows taking views of the differentials in an efficient way.
 
 A full declaration of the `Differential` is then:
 ```rs
@@ -252,13 +255,13 @@ struct Differential<Order, N, Data> {
     data: Data,
 }
 ```
-and the sames pattern applies to the `Derivatives` struct. Actual implementation can be found in #code_ref("src/lib.rs", line: "pub struct Differential<Order: Dim, N: Dim, Data>")
+and the same pattern applies to the `Derivatives` struct. Actual implementation can be found in #code_ref("src/lib.rs", line: "pub struct Differential<Order: Dim, N: Dim, Data>")
 
 == Basic operations <basic-operations>
 
 In order for this library to be useful, we need basic operations to be defined on #(`Differential`)s.
 
-Defining operations over all the possible shapes of the `Differential` may look challenging, and, in fact, it is if we want to explicitly write them down.\
+Defining operations over all the possible shapes of the `Differential` may look challenging, and in fact it is if we want to explicitly write them down.\
 There is a caveat though that allows us to express complex operations in terms of first order differentials.
 
 === Multiplication <multiplication>
@@ -284,7 +287,7 @@ We then have:
     )#d
 ]
 where $f$ and $g$ are the differentials and $K$ is the order of the differential.
-The corresponding relevant Rust code would look something like:
+The corresponding relevant Rust code would look something like (see #code_ref("src/impls/std_ops/mul.rs", line: "let derivatives = self.derivatives() * &other.drop_one_order() + other.derivatives() * &self.drop_one_order();")):
 ```rs
 a.derivatives() * b.drop_one_order() + b.derivatives() * a.drop_one_order()
 ```
@@ -292,7 +295,7 @@ a.derivatives() * b.drop_one_order() + b.derivatives() * a.drop_one_order()
 This means that for any shape of the differential we can easily express any operation in terms of the first order differential.
 
 In practice, for the multiplication case, this would be sub-optimal as we would compute the intermediate pieces ```rs a.derivatives() * b.drop_one_order()``` that would require allocating intermediate instances of the differential while for some shapes we know the explicit form of the differential.\
-The current multiplication rule is currently specialized for first order and backing up to the general rule for higher orders. This implementation formally requires checking against the shape of the differentia for each call but there are many optimizations the compiler can do to avoid this and this is because we bade the shape parameters generic: when `Order` and/or `N` types are `Fixed`, the compiler will know these shapes during generic specialization and remove unreachable branches when optimizations are enabled.
+The current implementation of the multiplication rule is then specialized for some shapes and backing up to the general rule for higher orders. This implementation technically requires checking against the shape of the differentia for each call but there are many optimizations that the compiler can perform to avoid this. This is because we made the shape parameters generic: when `Order` and/or `N` types are `Fixed`, the compiler will know these shapes during generic specialization and remove unreachable branches when optimizations are enabled.
 
 === Square root <square-root>
 
@@ -301,9 +304,10 @@ The chain rule gives:
 $
 sqrt((f, diff_alpha f)) = (sqrt(f), frac(diff_alpha f, 2 sqrt(f)))
 $
-that can be implemented with  the following algorithm:
+that can be implemented with @general-sqrt.
 #algorithm(
   title: [Plain square root algorithm],
+  label: "general-sqrt"
 )[
   #algo(
     title: "sqrt",
@@ -320,24 +324,30 @@ that can be implemented with  the following algorithm:
       )#d
   ]
 ]
-There is also another obvious way of computing the square root, which is the Heron's method @heron-sqrt:
+There is also another obvious way of computing the square root, which is the Heron's method @heron-sqrt described in in @babylon_sqrt:
 #algorithm(
   title: [Heron's square root AKA Babylonian square root],
   label: "babylon_sqrt",
 )[
   #algo(
     title: "babylon_sqrt",
-    parameters: ($x$, $N$),
+    parameters: ($x$, "n_steps"),
   )[
     $r <- sqrt(x_0)$ #comment[our initial guess is the *constant* root]\
-    for \_ in 0..$N$: #i\
-      $r <- (r + x \/ s)/2$ #comment[Heron's step] #d\
+    for \_ in 0..n_steps: #i\
+      $r <- (r + x \/ r)/2$ #comment[Heron's step] #d\
     return $r$
   ]
 ]
-In practice, we observe that the derivatives converge in a few steps (usually 5).
+In practice, we observe that the derivatives converge in a few steps (usually 5), this was expected as described in @ad-convergence-in-recursive-algorithms.
 #todo[
   an appropriate test and analysis of the convergence of the derivatives / error. Decide which one is the most efficient and/or accurate.
+]
+
+= Static memoization <static-memoization>
+
+#todo[
+  describe compile time memoization for shape/mapping functions
 ]
 
 = Allocations optimization <allocations-optimization>
@@ -358,7 +368,7 @@ In practice, we observe that the derivatives converge in a few steps (usually 5)
   ...
 ]
 
-= Conclusion <conclusion>
+= Conclusions <conclusions>
 
 #todo[
   ...
