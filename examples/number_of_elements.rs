@@ -1,4 +1,4 @@
-use differential::utils::number_of_elements;
+use differential::layout::number_of_elements;
 use num_traits::Pow;
 use plotters::prelude::*;
 

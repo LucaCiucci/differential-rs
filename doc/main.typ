@@ -3,55 +3,8 @@
 #import "common_styles.typ": *
 #import "boxes.typ": *
 #import "project.typ": *
+#import "defs.typ": *
 #import "@preview/algo:0.3.3": algo, i, d, comment, code
-
-#let ref-enzyme = [@NEURIPS2020_9332c513 #ref(label("10.1145/3458817.3476165")) #ref(label("10.5555/3571885.3571964"))]
-
-#let diff-package = link("https://github.com/LucaCiucci/differential-rs")[`differential`] + [@differential-repo]
-
-#let typ_label = label
-#let appendix(title, body, render: (it, label) => it, label: "") = {
-    let h = heading([Appendix: #title], supplement: "Appendix");
-    if label != "" {
-        [#h #typ_label(label)]
-    } else {
-        h
-    }
-    render(body, label)
-}
-
-#let branch = {
-  let file = read("../.git/HEAD");
-  let branch = file.split("/").last();
-  branch.trim()
-}
-#let orig_hash = {
-  let file = read("../.git/refs/heads/" + branch);
-  file.trim()
-}
-
-#let code_ref(file, line: -1) = {
-    let url = "https://github.com/LucaCiucci/differential-rs/blob/" + orig_hash + "/" + file;
-    let line = if type(line) == "string" {
-        let file = read("../" + file);
-        let line = file.split("\n").enumerate().find((nl) => nl.at(1).contains(line));
-        if line == none {
-            panic("line not found")
-        }
-        line.at(0) + 1
-    } else {
-        line
-    }
-    let content = if line < 0 {
-        file
-    } else {
-        url = url + "#L" + str(line);
-        file + ":" + str(line)
-    };
-    link(url, raw(content, block: false))
-    footnote(link(url, url))
-}
-// https://github.com/LucaCiucci/differential-rs/blob/d0e5265b9a68b21b916f803d1ced764996c279a8/Cargo.toml#L13
 
 #show: common_styles
 #show: project.with(
@@ -141,37 +94,15 @@ This poses some problems since the number of derivatives grows exponentially wit
 
 == Hybrid representation approach <ad-hybrid-representation-approach>
 
-If we try to write down the 3rd order differential for 3 variables, we would get:
-#let unn(it, ok) = if ok > 0 { text(gray, it) } else { it }
+If we try to write down the 3rd order differential for 3 variables, we would get @fig-n3k3:
 
-#text(10pt)[$
-(
-  f,
-  vec(f_x, f_y, f_x),
-  mat(
-    vec(unn(f_(x x), #0), unn(f_(x y), #0), unn(f_(x z), #0)),
-    vec(unn(f_(y x), #1), unn(f_(y y), #0), unn(f_(y z), #0)),
-    vec(unn(f_(z x), #1), unn(f_(z y), #1), unn(f_(z z), #0)),
-  ),
-  mat(
-    cases(
-      unn(vec(unn(f_(x x x), #0), unn(f_(x x y), #0), unn(f_(x x z), #0)), #0),
-      unn(vec(unn(f_(x y x), #1), unn(f_(x y y), #0), unn(f_(x y z), #0)), #0),
-      unn(vec(unn(f_(x z x), #1), unn(f_(x z y), #1), unn(f_(x z z), #0)), #0),
-    ),
-    cases(
-      unn(vec(unn(f_(y x x), #0), unn(f_(y x y), #0), unn(f_(y x z), #0)), #1),
-      unn(vec(unn(f_(y y x), #1), unn(f_(y y y), #0), unn(f_(y y z), #0)), #0),
-      unn(vec(unn(f_(y z x), #1), unn(f_(y z y), #1), unn(f_(y z z), #0)), #0),
-    ),
-    cases(
-      unn(vec(unn(f_(z x x), #0), unn(f_(z x y), #0), unn(f_(z x z), #0)), #1),
-      unn(vec(unn(f_(z y x), #1), unn(f_(z y y), #0), unn(f_(z y z), #0)), #1),
-      unn(vec(unn(f_(z z x), #1), unn(f_(z z y), #1), unn(f_(z z z), #0)), #0),
-    ),
-  )
-)
-$]
+#figure(
+  text(10pt, include "figs/n3k3.typ"),
+  caption: [
+    Explicit representation of the 3rd order differential for 3 variables as a tuple. Spatial organization has the sole purpose of being visually interpretable. \
+    Repeated elements are grayed out.
+  ],
+) <fig-n3k3>
 
 And we see that there are $1 + 3 + 9 + 27 = #(1 + 3 + 9 + 27)$ elements, but only $1 + 3 + 6 + 10 = #(1 + 3 + 6 + 10)$ unique values because of @symmetry-of-second-derivatives.
 
@@ -206,11 +137,11 @@ Similarly, considering the "derivative" part of a differential (implemented with
 
 == Memory layout <memory-layout>
 
-The base of our our mapping is computing the number of elements in in our representation. We following formula is used:
+The base of our our mapping is computing the number of elements in in our representation. We following formula is used (see #code_ref("src/layout.rs", line: "fn number_of_elements_impl")):
 $
-"#elements"(N, K) = cases(
+"#"(N, K) = cases( // TODO maybe "#elements" instead of "#"
   1 space "if" K = 0,
-  sum_(n = 1)^(N) "#elements"(n, K - 1)
+  1 + sum_(n = 1)^(N) "#"(n, K - 1)
 )
 $ <ad-differential-serialized-size>
 Where $N$ is the number of variables and $K$ is the order of the differential.
@@ -378,6 +309,10 @@ In practice, we observe that the derivatives converge in a few steps (usually 5)
   [Convergence of AD in recursive algorithms], // TODO maybe "... in fixed point search algorithms" or something like that
   label: "ad-convergence-in-recursive-algorithms",
 )[
+  #todo[
+    generalize for generic dimension
+  ]
+
   Before going on, we prove a trivial result that is required for @babylon_sqrt might be required in some problems. Some algorithms may not be expressed in closed form and, instead, they rely on recursion.
   As an example, we might want to apply AD to the result of the Newton algorithm to find roots. In this case we have:
   $

@@ -15,7 +15,7 @@ fn main() {
         let diff = Differential::from_data(
             Dynamic(Some(order)),
             Dynamic(Some(1)),
-            MyStorage::from_iter([4.0, 1.0].into_iter().chain(std::iter::repeat(0.0)).take(utils::number_of_elements(1, order))),
+            MyStorage::from_iter([4.0, 1.0].into_iter().chain(std::iter::repeat(0.0)).take(layout::number_of_elements(1, order))),
         );
         let start = Instant::now();
         let mut iterations = 0u64;
@@ -37,7 +37,7 @@ fn main() {
         let diff = Differential::from_data(
             Dynamic(Some(1)),
             Dynamic(Some(n)),
-            MyStorage::from_iter(std::iter::once(4.0).chain((0..10 * n).map(|i| i as f64)).chain(std::iter::repeat(0.0)).take(utils::number_of_elements(n, 1))),
+            MyStorage::from_iter(std::iter::once(4.0).chain((0..10 * n).map(|i| i as f64)).chain(std::iter::repeat(0.0)).take(layout::number_of_elements(n, 1))),
         );
         let start = Instant::now();
         let mut iterations = 0u64;

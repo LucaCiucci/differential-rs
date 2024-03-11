@@ -1,4 +1,4 @@
-use differential::{utils::number_of_elements, *};
+use differential::{layout::number_of_elements, *};
 
 fn main() {
     let _diff = Differential::from_data(

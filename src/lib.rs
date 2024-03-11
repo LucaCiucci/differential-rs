@@ -16,6 +16,7 @@ mod storage; pub use storage::*;
 mod dim; pub use dim::*;
 mod derivatives; pub use derivatives::*;
 pub mod utils; use utils::*;
+pub mod layout; use layout::*;
 mod impls;
 mod diff_index; pub use diff_index::*;
 
