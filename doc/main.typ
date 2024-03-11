@@ -20,13 +20,13 @@
     render(body, label)
 }
 
-//#let branch = {
-//  let file = read("../.git/HEAD");
-//  let branch = file.split("/").last();
-//  branch.trim()
-//}
+#let branch = {
+  let file = read("../.git/HEAD");
+  let branch = file.split("/").last();
+  branch.trim()
+}
 #let orig_hash = {
-  let file = read("../.git/ORIG_HEAD");
+  let file = read("../.git/refs/heads/" + branch);
   file.trim()
 }
 
