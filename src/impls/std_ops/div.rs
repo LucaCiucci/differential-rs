@@ -14,7 +14,7 @@ where
     fn div(self, other: Differential<Order, N, Data2>) -> Self::Output {
         let rhs = if !self.is_shape_defined() && !other.is_shape_defined() {
             let mut result = self.into_owned();
-            result.data.slice_mut()[0] /= other.data_slice()[0];
+            result.inner.data.slice_mut()[0] /= other.data_slice()[0];
             return result;
         } else if !self.is_shape_defined() {
             if let Some(n) = self.n().value() {
@@ -39,7 +39,7 @@ where
                 assert_eq!(order, self.order().value().unwrap());
             }
             let mut result = self.into_owned();
-            let data = result.data.slice_mut();
+            let data = result.inner.data.slice_mut();
             for c in data {
                 *c /= other.data_slice()[0];
             }
@@ -112,13 +112,13 @@ where
         } else {
             let value = rhs.value().clone() / other.value();
             if order == 0 {
-                Self::Output::from_data(rhs.order, rhs.n, Data::from_slice(&[value]))
+                Self::Output::from_data(rhs.inner.order, rhs.inner.n, Data::from_slice(&[value]))
             } else {
                 // GENERAL CASE
                 let derivatives = rhs.derivatives() * &rhs.drop_one_order() - other.derivatives() * &other.drop_one_order();
                 let data = std::iter::once(value)
-                    .chain(derivatives.unwrap_data().make_into_iter()); // TODO <- optimize
-                Self::Output::from_data(rhs.order, rhs.n, Data::from_iter(data)) // TODO <- optimize
+                    .chain(derivatives.unwrap_inner().data.make_into_iter()); // TODO <- optimize
+                Self::Output::from_data(rhs.inner.order, rhs.inner.n, Data::from_iter(data)) // TODO <- optimize
             }
         }
     }

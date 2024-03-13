@@ -47,7 +47,7 @@ fn sqrt<Order: Dim, N: Dim, S: MutStorage<Item = f64> + Clone + Owned>(x: &Diffe
         Differential::from_data(
             x.order(),
             x.n(),
-            S::from_iter(std::iter::once(*sqrt_rec.value()).chain(derivative.data.make_into_iter())),
+            S::from_iter(std::iter::once(*sqrt_rec.value()).chain(derivative.unwrap_inner().data.make_into_iter())),
         )
     }
 }

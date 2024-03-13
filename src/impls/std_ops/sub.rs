@@ -48,7 +48,7 @@ where
 {
     fn sub_assign(&mut self, other: &Differential<Order, N, Data2>) {
         if self.order().value() == other.order().value() && self.n().value() == other.n().value() {
-            let l = self.data.slice_mut();
+            let l = self.inner.data.slice_mut();
             let r = other.data_slice();
             assert_eq!(l.len(), r.len());
             for (a, b) in l.iter_mut().zip(r) {
@@ -69,7 +69,7 @@ where
     type Output = <Self as IntoOwned>::Owned;
 
     fn neg(self) -> Self::Output {
-        let result = self.data.map_into_owned(|x, _| *x = -x.clone());
-        Self::Output::from_data(self.order, self.n, result)
+        let result = self.inner.data.map_into_owned(|x, _| *x = -x.clone());
+        Self::Output::from_data(self.inner.order, self.inner.n, result)
     }
 }

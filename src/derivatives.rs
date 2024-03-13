@@ -7,37 +7,35 @@ pub struct Derivatives<Order: Dim, N: Dim, Data>
 where
     Data: ConstStorage,
 {
-    order: Order,
-    n: N,
-    pub data: Data,
+    inner: DiffInner<Order, N, Data>,
 }
 
 impl<Order: Dim, N: Dim, Data> Derivatives<Order, N, Data>
 where
     Data: ConstStorage,
 {
+    pub fn new_from_inner(inner: DiffInner<Order, N, Data>) -> Self {
+        Self { inner }
+    }
+
+    pub fn unwrap_inner(self) -> DiffInner<Order, N, Data> {
+        self.inner
+    }
+
     pub fn new(order: Order, n: N, data: Data) -> Self {
-        Self {
-            order,
-            n,
-            data,
-        }
+        Self::new_from_inner(DiffInner { order, n, data })
     }
 
     pub fn order(&self) -> Option<usize> { // TODO maybe return Order instead of Option<usize>?
-        self.order.value()
+        self.inner.order.value()
     }
 
     pub fn n(&self) -> Option<usize> { // TODO maybe return N instead of Option<usize>?
-        self.n.value()
+        self.inner.n.value()
     }
 
     pub fn data_slice(&self) -> &[Data::Item] {
-        self.data.slice()
-    }
-
-    pub fn unwrap_data(self) -> Data {
-        self.data
+        self.inner.data.slice()
     }
 
     pub fn get<'s>(&'s self, i: usize) -> Differential<Dynamic, Dynamic, StorageSlice<'s, Data>>
@@ -46,7 +44,7 @@ where
         let n = self.n().expect("n is not known");
         let order = self.order().expect("order is not known");
         let offset = offset_under(n, i, order);
-        let data: &[Data::Item] = &self.data.slice()[offset..];
+        let data: &[Data::Item] = &self.inner.data.slice()[offset..];
         Differential::from_data(
             Dynamic(Some(order - 1)),
             Dynamic(Some(n - i)),
@@ -59,7 +57,7 @@ where
         Data: MutStorage,
         Data::Item: MulAssign,
     {
-        for a in self.data.slice_mut().iter_mut() {
+        for a in self.inner.data.slice_mut().iter_mut() {
             *a *= rhs.clone();
         }
     }
@@ -78,7 +76,7 @@ where
         Data: MutStorage,
         Data::Item: DivAssign,
     {
-        for a in self.data.slice_mut().iter_mut() {
+        for a in self.inner.data.slice_mut().iter_mut() {
             *a /= rhs.clone();
         }
     }
@@ -100,7 +98,7 @@ where
 {
     type Owned = Derivatives<Order, N, Data::Owned>;
     fn into_owned(self) -> Self::Owned {
-        Derivatives::new(self.order, self.n, self.data.into_owned())
+        Derivatives::new(self.inner.order, self.inner.n, self.inner.data.into_owned())
     }
 }
 
@@ -136,12 +134,12 @@ where
             .rev()
             .map(|i| {
                 let r = self.get(i) * &rhs.drop_first_derivatives(i);
-                r.data.make_into_iter()
+                r.inner.data.make_into_iter()
             })
             .flatten();
         Derivatives::new(
-            self.order,
-            self.n,
+            self.inner.order,
+            self.inner.n,
             Data::from_iter(data),
         )
     }
@@ -157,12 +155,12 @@ where
     type Output = Derivatives<Order, N, Data::Owned>;
 
     fn add(self, rhs: Derivatives<Order, N, Data2>) -> Self::Output {
-        let data = self.data.slice().iter()
-            .zip(rhs.data.slice().iter())
+        let data = self.inner.data.slice().iter()
+            .zip(rhs.inner.data.slice().iter())
             .map(|(a, b)| a.clone() + b.clone());
         Derivatives::new(
-            self.order,
-            self.n,
+            self.inner.order,
+            self.inner.n,
             Data::from_iter(data),
         )
     }
@@ -178,12 +176,12 @@ where
     type Output = Derivatives<Order, N, Data::Owned>;
 
     fn sub(self, rhs: Derivatives<Order, N, Data2>) -> Self::Output {
-        let data = self.data.slice().iter()
-            .zip(rhs.data.slice().iter())
+        let data = self.inner.data.slice().iter()
+            .zip(rhs.inner.data.slice().iter())
             .map(|(a, b)| a.clone() - b.clone());
         Derivatives::new(
-            self.order,
-            self.n,
+            self.inner.order,
+            self.inner.n,
             Data::from_iter(data),
         )
     }

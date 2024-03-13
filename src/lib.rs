@@ -19,20 +19,19 @@ pub mod utils; use utils::*;
 pub mod layout; use layout::*;
 mod impls;
 mod diff_index; pub use diff_index::*;
+mod data; pub use data::*;
 
 pub use alias::*;
 
 /// A differential.
 ///
 /// This struct represents the differential of a function.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 pub struct Differential<Order: Dim, N: Dim, Data>
 where
     Data: ConstStorage,
 {
-    order: Order,
-    n: N,
-    pub data: Data,
+    inner: DiffInner<Order, N, Data>,
 }
 
 impl<Order: Dim, N: Dim, Data> Differential<Order, N, Data>
@@ -41,11 +40,11 @@ where
 {
     pub fn from_data(order: Order, n: N, data: Data) -> Self {
         assert!(data.slice().len() >= maybenumber_of_elements(n.value(), order.value()));
-        Self {
+        Self::new_from_inner(DiffInner {
             order,
             n,
             data,
-        }
+        })
     }
 
     pub fn new_constant(value: Data::Item) -> Self
@@ -55,11 +54,27 @@ where
     {
         let order = Order::undef();
         let n = N::undef();
-        Self {
+        Self::new_from_inner(DiffInner {
             order,
             n,
             data: Data::from_order_0(value, || Zero::zero()),
-        }
+        })
+    }
+
+    pub fn inner(&self) -> &DiffInner<Order, N, Data> {
+        &self.inner
+    }
+
+    pub fn unwrap_inner(self) -> DiffInner<Order, N, Data> {
+        self.inner
+    }
+
+    pub fn new_from_inner(inner: DiffInner<Order, N, Data>) -> Self {
+        Self { inner }
+    }
+
+    pub fn data(&self) -> &Data {
+        &self.inner.data
     }
 
     pub fn define_order(&mut self, order: Order)
@@ -75,13 +90,13 @@ where
         if let Some(current_order) = current_order {
             assert_eq!(current_order, new_order, "Cannot redefine the order of a differential to a different order");
         } else {
-            self.order = order;
+            self.inner.order = order;
             if self.is_shape_defined() {
                 let n = self.n().value().unwrap();
                 let order = order.value().unwrap();
                 let count = number_of_elements(n, order);
-                let data_len = self.data.slice().len().max(count);
-                self.data.assign_iter(1, std::iter::repeat_with(Zero::zero).take(data_len - 1));
+                let data_len = self.inner.data.slice().len().max(count);
+                self.inner.data.assign_iter(1, std::iter::repeat_with(Zero::zero).take(data_len - 1));
             }
         }
     }
@@ -108,13 +123,13 @@ where
         if let Some(current_n) = current_n {
             assert_eq!(current_n, new_n, "Cannot redefine the n of a differential to a different n");
         } else {
-            self.n = n;
+            self.inner.n = n;
             if self.is_shape_defined() {
                 let n = n.value().unwrap();
                 let order = self.order().value().unwrap();
                 let count = number_of_elements(n, order);
-                let data_len = self.data.slice().len().max(count);
-                self.data.assign_iter(1, std::iter::repeat_with(Zero::zero).take(data_len - 1));
+                let data_len = self.inner.data.slice().len().max(count);
+                self.inner.data.assign_iter(1, std::iter::repeat_with(Zero::zero).take(data_len - 1));
             }
         }
     }
@@ -129,30 +144,30 @@ where
     }
 
     pub fn order(&self) -> Order {
-        self.order
+        self.inner.order
     }
 
     pub fn n(&self) -> N {
-        self.n
+        self.inner.n
     }
 
     pub fn is_shape_defined(&self) -> bool {
-        self.n.value().is_some() && self.order.value().is_some()
+        self.inner.n.value().is_some() && self.inner.order.value().is_some()
     }
 
     pub fn value(&self) -> &Data::Item {
-        &self.data.slice()[0]
+        &self.inner.data.slice()[0]
     }
 
     pub fn data_slice(&self) -> &[Data::Item] {
-        self.data.slice()
+        self.inner.data.slice()
     }
 
     pub fn value_mut(&mut self) -> &mut Data::Item
     where
         Data: MutStorage,
     {
-        &mut self.data.slice_mut()[0]
+        &mut self.inner.data.slice_mut()[0]
     }
 
     pub fn derivatives(&self) -> Derivatives<Dynamic, N, StorageSlice<Data::Owned>>
@@ -162,7 +177,7 @@ where
         Derivatives::new(
             Dynamic(self.order().value()),
             self.n(),
-            StorageSlice::new(&self.data.slice()[1..]),
+            StorageSlice::new(&self.inner.data.slice()[1..]),
         )
     }
 
@@ -177,7 +192,7 @@ where
             (_, Some(order)) => return Differential::from_data(
                 Dynamic(Some(order - 1)),
                 n,
-                CowStorage::Borrowed(&self.data.slice()[..1]), // TODO is this correct? maybe this?:
+                CowStorage::Borrowed(&self.inner.data.slice()[..1]), // TODO is this correct? maybe this?:
                 //<&[Data::Item] as ConstStorage>::from_order_0(
                 //    self.data.slice()[0].clone(),
                 //    || unreachable!(),
@@ -186,7 +201,7 @@ where
             _ => return Differential::from_data(
                 Dynamic(None),
                 n,
-                CowStorage::Borrowed(&self.data.slice()[..1]),
+                CowStorage::Borrowed(&self.inner.data.slice()[..1]),
             ),
         };
 
@@ -194,15 +209,15 @@ where
         if n == 1 {
             Differential::from_data(
                 Dynamic(Some(order - 1)),
-                self.n,
-                CowStorage::Borrowed(&self.data.slice()[0..order]), // TODO correct? maybe -1?
+                self.inner.n,
+                CowStorage::Borrowed(&self.inner.data.slice()[0..order]), // TODO correct? maybe -1?
             )
         } else {
             if order == 1 {
                 Differential::from_data(
                     Dynamic(Some(0)),
                     self.n(),
-                    CowStorage::Borrowed(&self.data.slice()[0..1]),
+                    CowStorage::Borrowed(&self.inner.data.slice()[0..1]),
                 )
             } else {
                 let derivatives = self.derivatives();
@@ -210,13 +225,13 @@ where
                 // TODO extremely inefficient, multiple allocations
                 // this might be solved by using drop_one_order that accepts a visitor
                 // instead of returning a new Diff
-                let data = std::iter::once(self.data.slice()[0].clone())
+                let data = std::iter::once(self.inner.data.slice()[0].clone())
                     .chain((0..n)
                         .rev()
                         .map(|i| {
                             let d = derivatives.get(i);
                             let d = d.drop_one_order();
-                            d.data.into_owned().make_into_iter()
+                            d.inner.data.into_owned().make_into_iter()
                         })
                         .flatten()
                     );
@@ -238,12 +253,12 @@ where
             (Some(n), order) => Differential::from_data(
                 Dynamic(order),
                 Dynamic(Some(n - offset)),
-                StorageSlice::new(&self.data.slice()), // TODO <- correct range
+                StorageSlice::new(&self.inner.data.slice()), // TODO <- correct range
             ),
             (None, order) => Differential::from_data(
                 Dynamic(order),
                 Dynamic(None),
-                StorageSlice::new(&self.data.slice()), // TODO <- correct range
+                StorageSlice::new(&self.inner.data.slice()), // TODO <- correct range
             ),
         }
     }
@@ -252,7 +267,7 @@ where
         Differential::from_data(
             Dynamic(self.order().value()),
             Dynamic(self.n().value()),
-            StorageSlice::new(&self.data.slice()),
+            StorageSlice::new(&self.inner.data.slice()),
         )
     }
 
@@ -262,7 +277,7 @@ where
     {
         assert!(self.n().value() == Some(1)); // TODO correct???
         let mut divider = <Data::Item as NumCast>::from(1).unwrap();
-        self.data.map_into_owned(|c, i| {
+        self.inner.data.map_into_owned(|c, i| {
             divider *= <Data::Item as NumCast>::from(i.max(1)).unwrap();
             *c = c.clone() / divider;
         })
@@ -287,7 +302,7 @@ where
         Data: MutStorage,
         Data::Item: AddAssign,
     {
-        self.data.slice_mut()[0] += rhs;
+        self.inner.data.slice_mut()[0] += rhs;
     }
 
     pub fn with_added_value(mut self, rhs: Data::Item) -> Self
@@ -304,7 +319,7 @@ where
         Data: MutStorage,
         Data::Item: SubAssign,
     {
-        self.data.slice_mut()[0] -= rhs;
+        self.inner.data.slice_mut()[0] -= rhs;
     }
 
     pub fn with_subbed_value(mut self, rhs: Data::Item) -> Self
@@ -321,7 +336,7 @@ where
         Data: MutStorage,
         Data::Item: MulAssign,
     {
-        for a in self.data.slice_mut().iter_mut() {
+        for a in self.inner.data.slice_mut().iter_mut() {
             *a *= rhs.clone();
         }
     }
@@ -340,7 +355,7 @@ where
         Data: MutStorage,
         Data::Item: DivAssign,
     {
-        for a in self.data.slice_mut().iter_mut() {
+        for a in self.inner.data.slice_mut().iter_mut() {
             *a /= rhs.clone();
         }
     }
@@ -379,10 +394,10 @@ where
         let order = self.order().value();
         if let (Some(n), Some(order)) = (n, order) {
             let offset = offset_of(index, n, order);
-            &self.data.slice()[offset]
+            &self.inner.data.slice()[offset]
         } else {
             if index.into_orders().all(|o| o == 0) {
-                &self.data.slice()[0]
+                &self.inner.data.slice()[0]
             } else {
                 panic!("Cannot get derivatives from a differential with undefined shape");
             }
@@ -399,10 +414,10 @@ where
         let order = self.order().value();
         if let (Some(n), Some(order)) = (n, order) {
             let offset = offset_of(index, n, order);
-            &mut self.data.slice_mut()[offset]
+            &mut self.inner.data.slice_mut()[offset]
         } else {
             if index.into_orders().all(|o| o == 0) {
-                &mut self.data.slice_mut()[0]
+                &mut self.inner.data.slice_mut()[0]
             } else {
                 panic!("Cannot get derivatives from a differential with undefined shape");
             }
@@ -418,7 +433,7 @@ where
     type Owned = Differential<Order, N, Data::Owned>;
 
     fn into_owned(self) -> Self::Owned {
-        Self::Owned::from_data(self.order, self.n, self.data.into_owned())
+        Self::Owned::from_data(self.inner.order, self.inner.n, self.inner.data.into_owned())
     }
 }
 

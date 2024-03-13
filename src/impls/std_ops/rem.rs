@@ -17,8 +17,8 @@ where
         let rhs_derivatives = rhs.derivatives().into_owned();
         let derivatives = self.derivatives() - rhs_derivatives.scaled_by(i_div);
         let data = std::iter::once(rem)
-            .chain(derivatives.unwrap_data().make_into_iter()); // TODO <- optimize
-        Self::Output::from_data(self.order, self.n, Data::from_iter(data)) // TODO <- optimize
+            .chain(derivatives.unwrap_inner().data.make_into_iter()); // TODO <- optimize
+        Self::Output::from_data(self.inner.order, self.inner.n, Data::from_iter(data)) // TODO <- optimize
     }
 }
 

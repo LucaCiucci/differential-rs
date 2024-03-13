@@ -74,12 +74,12 @@ where
 
     let value = lhs.value().clone() * rhs.value();
     if order == 0 {
-        Differential::from_data(lhs.order, lhs.n, Data::from_slice(&[value]))
+        Differential::from_data(lhs.inner.order, lhs.inner.n, Data::from_slice(&[value]))
     } else {
         let derivatives = lhs.derivatives() * &rhs.drop_one_order() + rhs.derivatives() * &lhs.drop_one_order();
         let data = std::iter::once(value)
-            .chain(derivatives.unwrap_data().make_into_iter());
-        Differential::from_data(lhs.order, lhs.n, Data::from_iter(data)) // TODO <- optimize
+            .chain(derivatives.unwrap_inner().data.make_into_iter());
+        Differential::from_data(lhs.inner.order, lhs.inner.n, Data::from_iter(data)) // TODO <- optimize
     }
 }
 
@@ -100,14 +100,14 @@ where
 
     match (order, true) {
         // TODO these specializations will speed up the code a lot in debug mode
-        // but they slow down the code in release mode! Should I remove them for concistency
+        // but they slow down the code in release mode! Should I remove them for consistency
         // or enable them only in debug mode?
         (0, true) => {
             let lhs_slice = lhs.data_slice();
             let rhs_slice = rhs.data_slice();
             Differential::from_data(
-                lhs.order,
-                lhs.n,
+                lhs.inner.order,
+                lhs.inner.n,
                 Data::Owned::from_slice(&[
                     lhs_slice[0] * rhs_slice[0],
                 ]),
@@ -117,8 +117,8 @@ where
             let lhs_slice = lhs.data_slice();
             let rhs_slice = rhs.data_slice();
             Differential::from_data(
-                lhs.order,
-                lhs.n,
+                lhs.inner.order,
+                lhs.inner.n,
                 Data::Owned::from_slice(&[
                     lhs_slice[0] * rhs_slice[0],
                     lhs_slice[1] * rhs_slice[0] + lhs_slice[0] * rhs_slice[1],
@@ -129,8 +129,8 @@ where
             let lhs_slice = lhs.data_slice();
             let rhs_slice = rhs.data_slice();
             Differential::from_data(
-                lhs.order,
-                lhs.n,
+                lhs.inner.order,
+                lhs.inner.n,
                 Data::Owned::from_slice(&[
                     lhs_slice[0] * rhs_slice[0],
                     lhs_slice[1] * rhs_slice[0] + lhs_slice[0] * rhs_slice[1],
@@ -170,7 +170,7 @@ where
 {
     if !lhs.is_shape_defined() && !rhs.is_shape_defined() {
         let mut result = lhs.into_owned();
-        result.data.slice_mut()[0] *= rhs.data_slice()[0];
+        result.inner.data.slice_mut()[0] *= rhs.data_slice()[0];
         result
     } else if !lhs.is_shape_defined() {
         if let Some(n) = lhs.n().value() {
@@ -180,7 +180,7 @@ where
             assert_eq!(order, rhs.order().value().unwrap());
         }
         let mut result = rhs.into_owned();
-        let data = result.data.slice_mut();
+        let data = result.inner.data.slice_mut();
         for c in data {
             *c *= lhs.data_slice()[0];
         }
@@ -193,7 +193,7 @@ where
             assert_eq!(order, lhs.order().value().unwrap());
         }
         let mut result = lhs.into_owned();
-        let data = result.data.slice_mut();
+        let data = result.inner.data.slice_mut();
         for c in data {
             *c *= rhs.data_slice()[0];
         }

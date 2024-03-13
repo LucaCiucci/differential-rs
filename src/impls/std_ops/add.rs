@@ -48,7 +48,7 @@ where
 {
     fn add_assign(&mut self, other: &Differential<Order, N, Data2>) {
         if !other.is_shape_defined() {
-            self.data.slice_mut()[0] += other.data_slice()[0].clone();
+            self.inner.data.slice_mut()[0] += other.data_slice()[0].clone();
             return;
         } else if !self.is_shape_defined() {
             if self.n().value().is_none() {
@@ -61,7 +61,7 @@ where
         }
 
         if self.order().value() == other.order().value() && self.n().value() == other.n().value() {
-            let l = self.data.slice_mut();
+            let l = self.inner.data.slice_mut();
             let r = other.data_slice();
             assert_eq!(l.len(), r.len());
             for (a, b) in l.iter_mut().zip(r) {
