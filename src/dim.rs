@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 
 
-pub trait Dim: Debug + Copy {
+pub trait Dim: Debug + Copy + PartialEq {
     fn value(&self) -> Option<usize>;
     fn undef() -> Self;
 }

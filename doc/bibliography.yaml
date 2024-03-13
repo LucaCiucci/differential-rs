@@ -98,3 +98,12 @@ fixed-point:
   url:
     value: https://en.wikipedia.org/wiki/Fixed_point_(mathematics)
     date: 2024-03-10
+
+faa-di-bruno-thesis:
+  type: thesis
+  title: LA FORMULA DI FAA DI BRUNO
+  author: [Chiara Bernardini]
+  date: 2018
+  url:
+    value: https://amslaurea.unibo.it/15989/1/Chiara_Bernardini_tesi.pdf
+    date: 2024-03-11

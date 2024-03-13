@@ -11,7 +11,19 @@
 ) = {
   // Set the document's basic properties.
   set document(author: authors.map(a => a.name), title: title)
-  set page(numbering: "1", number-align: center)
+  set page(
+    numbering: "1",
+    number-align: center,
+    header: rect(
+      width: 100%,
+      fill: orange.lighten(75%),
+      stroke: (
+        top: orange + 1pt,
+        bottom: orange + 1pt,
+      ),
+      align(center)[#emoji.warning *DRAFT* #emoji.warning],
+    ),
+  )
   set text(font: "Linux Libertine", lang: "en")
 
   // Title row.
