@@ -17,7 +17,12 @@ default = [
 generic_const_exprs = []
 
 [dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
 plotters = "0.3.5"
 type-map = "0.5.0"
 #debug = true
 #lto = true
+
+[[bench]]
+name = "my_benchmark"
+harness = false

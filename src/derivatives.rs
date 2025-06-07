@@ -122,7 +122,7 @@ where
     Data: ConstStorage + Clone,
     Data::Owned: MutStorage<Item = Data::Item> + Clone,
     Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
-    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign,
+    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + Mul<Data::Item, Output = Data::Item> + AddAssign + MulAssign + NumCast + Div<Data::Item, Output = Data::Item>,
 {
     type Output = Derivatives<Order, N, Data::Owned>;
 

@@ -6,7 +6,7 @@ Provides some differentiation utilities.
 //#![feature(generic_const_exprs)]
 
 use std::fmt::Debug;
-use std::ops::{Index, IndexMut, MulAssign, DivAssign, AddAssign, SubAssign};
+use std::ops::{AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, SubAssign};
 
 use num_traits::real::Real;
 use num_traits::{NumCast, Zero};
@@ -20,6 +20,7 @@ pub mod layout; use layout::*;
 mod impls;
 mod diff_index; pub use diff_index::*;
 mod data; pub use data::*;
+pub mod order_test;
 
 pub use alias::*;
 
@@ -39,7 +40,7 @@ where
     Data: ConstStorage,
 {
     pub fn from_data(order: Order, n: N, data: Data) -> Self {
-        assert!(data.slice().len() >= maybenumber_of_elements(n.value(), order.value()));
+        assert!(data.slice().len() >= maybe_number_of_elements(n.value(), order.value()));
         Self::new_from_inner(DiffInner {
             order,
             n,
@@ -273,26 +274,26 @@ where
 
     pub fn polynomial_coeffs(self) -> Data::Owned
     where
-        Data::Item: Real + MulAssign,
+        Data::Item: MulAssign + Div<Output = Data::Item> + NumCast,
     {
         assert!(self.n().value() == Some(1)); // TODO correct???
         let mut divider = <Data::Item as NumCast>::from(1).unwrap();
         self.inner.data.map_into_owned(|c, i| {
             divider *= <Data::Item as NumCast>::from(i.max(1)).unwrap();
-            *c = c.clone() / divider;
+            *c = c.clone() / divider.clone();
         })
     }
 
     pub fn from_polynomial_coeffs(data: Data, order: Order, n: N) -> Differential<Order, N, Data::Owned>
     where
         Data::Owned: ConstStorage,
-        Data::Item: Real + MulAssign,
+        Data::Item: MulAssign + Mul<Output = Data::Item> + NumCast,
     {
         assert!(n.value() == Some(1)); // TODO correct???
         let mut multiplier = <Data::Item as NumCast>::from(1).unwrap();
         let data = data.map_into_owned(|c, i| {
             multiplier *= <Data::Item as NumCast>::from(i.max(1)).unwrap();
-            *c = c.clone() * multiplier;
+            *c = c.clone() * multiplier.clone();
         });
         Differential::from_data(order, n, data)
     }

@@ -7,7 +7,7 @@ where
     Data: ConstStorage + Clone,
     Data::Owned: MutStorage<Item = Data::Item> + Clone,
     Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
-    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign,
+    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + Mul<Data::Item, Output = Data::Item> + AddAssign + MulAssign + NumCast + Div<Data::Item, Output = Data::Item>,
 {
     type Output = Differential<Order, N, Data::Owned>;
 
@@ -36,7 +36,7 @@ where
     Data: ConstStorage + Clone,
     Data::Owned: MutStorage<Item = Data::Item> + Clone,
     Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
-    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign,
+    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + Mul<Data::Item, Output = Data::Item> + AddAssign + MulAssign + NumCast + Div<Data::Item, Output = Data::Item>,
 {
     type Output = Differential<Order, N, Data::Owned>;
 
@@ -65,7 +65,7 @@ where
     Data: ConstStorage + Clone,
     Data::Owned: MutStorage<Item = Data::Item> + Clone,
     Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
-    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign,
+    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + Mul<Data::Item, Output = Data::Item> + AddAssign + MulAssign + NumCast + Div<Data::Item, Output = Data::Item>,
 {
     assert_eq!(lhs.n().value(), rhs.n().value());
     assert_eq!(lhs.order(), rhs.order());
@@ -91,7 +91,7 @@ where
     Data: ConstStorage + Clone,
     Data::Owned: MutStorage<Item = Data::Item> + Clone,
     Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
-    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign,
+    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + Mul<Data::Item, Output = Data::Item> + AddAssign + MulAssign + NumCast + Div<Output = Data::Item>,
 {
     assert_eq!(lhs.n(), rhs.n());
     assert_eq!(lhs.order(), rhs.order());
@@ -109,7 +109,7 @@ where
                 lhs.inner.order,
                 lhs.inner.n,
                 Data::Owned::from_slice(&[
-                    lhs_slice[0] * rhs_slice[0],
+                    lhs_slice[0].clone() * &rhs_slice[0],
                 ]),
             )
         }
@@ -120,8 +120,8 @@ where
                 lhs.inner.order,
                 lhs.inner.n,
                 Data::Owned::from_slice(&[
-                    lhs_slice[0] * rhs_slice[0],
-                    lhs_slice[1] * rhs_slice[0] + lhs_slice[0] * rhs_slice[1],
+                    lhs_slice[0].clone() * &rhs_slice[0],
+                    lhs_slice[1].clone() * &rhs_slice[0] + lhs_slice[0].clone() * &rhs_slice[1],
                 ]),
             )
         }
@@ -132,9 +132,9 @@ where
                 lhs.inner.order,
                 lhs.inner.n,
                 Data::Owned::from_slice(&[
-                    lhs_slice[0] * rhs_slice[0],
-                    lhs_slice[1] * rhs_slice[0] + lhs_slice[0] * rhs_slice[1],
-                    lhs_slice[2] * rhs_slice[0] + lhs_slice[1] * rhs_slice[1] * <Data::Item as NumCast>::from(2).unwrap() + lhs_slice[0] * rhs_slice[2],
+                    lhs_slice[0].clone() * &rhs_slice[0],
+                    lhs_slice[1].clone() * &rhs_slice[0] + lhs_slice[0].clone() * &rhs_slice[1],
+                    lhs_slice[2].clone() * &rhs_slice[0] + lhs_slice[1].clone() * &rhs_slice[1] * &<Data::Item as NumCast>::from(2).unwrap() + lhs_slice[0].clone() * &rhs_slice[2],
                 ]),
             )
         }
@@ -166,11 +166,11 @@ where
     Data: ConstStorage + Clone,
     Data::Owned: MutStorage<Item = Data::Item> + Clone,
     Data2: ConstStorage<Item = Data::Item, Owned = Data::Owned> + Clone,
-    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + AddAssign + Real + MulAssign,
+    for <'a> Data::Item: Zero + Mul<&'a Data::Item, Output = Data::Item> + AddAssign + MulAssign,
 {
     if !lhs.is_shape_defined() && !rhs.is_shape_defined() {
         let mut result = lhs.into_owned();
-        result.inner.data.slice_mut()[0] *= rhs.data_slice()[0];
+        result.inner.data.slice_mut()[0] *= rhs.data_slice()[0].clone();
         result
     } else if !lhs.is_shape_defined() {
         if let Some(n) = lhs.n().value() {
@@ -182,7 +182,7 @@ where
         let mut result = rhs.into_owned();
         let data = result.inner.data.slice_mut();
         for c in data {
-            *c *= lhs.data_slice()[0];
+            *c *= lhs.data_slice()[0].clone();
         }
         result
     } else if !rhs.is_shape_defined() {
@@ -195,7 +195,7 @@ where
         let mut result = lhs.into_owned();
         let data = result.inner.data.slice_mut();
         for c in data {
-            *c *= rhs.data_slice()[0];
+            *c *= rhs.data_slice()[0].clone();
         }
         result
     } else {

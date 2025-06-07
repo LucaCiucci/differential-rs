@@ -7,11 +7,11 @@ fn main() {
         [4.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         //[4.0, 2.0, 0.0, 0.0, 0.0, 0.0],
     );
-    let o = 10;
+    let o = 3;
     let diff = Differential::from_data(
         Dynamic(Some(o)),
-        Fixed::<1>,
-        [4.23254903, 1.0].into_iter().chain(std::iter::repeat(0.0)).take(number_of_elements(1, o)).collect::<Vec<_>>(),
+        Fixed::<2>,
+        [4.23254903, 1.0].into_iter().chain((1..).map(|i| std::f64::consts::PI / i as f64)).take(number_of_elements(2, o)).collect::<Vec<_>>(),
     );
     let diff_size = std::mem::size_of_val(&diff);
     println!("diff_size = {:?}", diff_size / std::mem::size_of::<f64>());
@@ -20,6 +20,9 @@ fn main() {
     println!("sqrt = {:?}", s);
     let s = sqrt(&diff);
     println!("sqrt = {:?}", s);
+
+    let s2 = sqrt(&diff.drop_one_order().into_owned());
+    println!("sqrt2 = {:?}", s2);
 }
 
 fn babylon_sqrt<Order: Dim, N: Dim, S: MutStorage<Item = f64> + Clone + Owned>(x: &Differential<Order, N, S>, iterations: usize) -> Differential<Order, N, S>

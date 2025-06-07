@@ -2,7 +2,7 @@ use crate::{static_memo, DiffIndex};
 
 
 #[inline(always)]
-pub const fn maybenumber_of_elements(n: Option<usize>, order: Option<usize>) -> usize {
+pub const fn maybe_number_of_elements(n: Option<usize>, order: Option<usize>) -> usize {
     if let (Some(n), Some(order)) = (n, order) {
         number_of_elements(n, order)
     } else {
